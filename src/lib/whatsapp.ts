@@ -15,5 +15,9 @@ export async function sendWhatsAppMessage(to: string, body: string) {
       }),
     }
   );
-  return res.json();
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    console.error("WhatsApp API error:", JSON.stringify(data));
+  }
+  return data;
 }
