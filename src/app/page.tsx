@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
+import Link from "next/link";
 import type { ConversationWithLastMessage, Message } from "@/lib/types";
 
 export default function Dashboard() {
@@ -127,6 +128,22 @@ export default function Dashboard() {
               <p className="text-xs text-white/40 leading-tight mt-0.5">{conversations.length} conversation{conversations.length !== 1 ? "s" : ""}</p>
             </div>
           </div>
+        </div>
+
+        {/* Nav */}
+        <div className="px-3 py-2 border-b border-white/[0.06] flex flex-col gap-1">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.07] border border-white/8">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <span className="text-xs text-white/80 font-medium">Conversations</span>
+          </div>
+          <Link href="/campaigns" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/4 transition-all">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 2L11 13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+            <span className="text-xs text-white/40 font-medium">Campaigns</span>
+          </Link>
         </div>
 
         {/* Conversation List */}
