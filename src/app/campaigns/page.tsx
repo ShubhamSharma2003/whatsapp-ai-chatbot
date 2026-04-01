@@ -47,6 +47,7 @@ export default function CampaignsPage() {
   const [history, setHistory] = useState<Campaign[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Broadcast form state
   const [campaignName, setCampaignName] = useState("");
@@ -201,8 +202,13 @@ export default function CampaignsPage() {
 
   return (
     <div className="flex h-screen bg-[#0f0f0f] font-sans">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <div className="w-[260px] flex flex-col border-r border-white/[0.06]" style={{ background: "#141414" }}>
+      <div className={`${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 fixed md:static inset-y-0 left-0 z-50 w-[260px] flex flex-col border-r border-white/[0.06] transition-transform duration-200`} style={{ background: "#141414" }}>
         <div className="px-5 py-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
@@ -232,6 +238,16 @@ export default function CampaignsPage() {
             </svg>
             Campaigns
           </Link>
+          <Link
+            href="/settings"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white/80 hover:bg-white/[0.04] transition-all"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            Settings
+          </Link>
         </nav>
 
         {/* Sign out */}
@@ -258,19 +274,30 @@ export default function CampaignsPage() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <div className="px-8 py-5 border-b border-white/[0.06]" style={{ background: "#141414" }}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-white">Campaigns</h2>
-              <p className="text-xs text-white/40 mt-0.5">Broadcast Meta-approved templates</p>
+        <div className="px-4 md:px-8 py-4 md:py-5 border-b border-white/[0.06]" style={{ background: "#141414" }}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {/* Hamburger - mobile only */}
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/[0.06] transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              </button>
+              <div>
+                <h2 className="text-base font-semibold text-white">Campaigns</h2>
+                <p className="text-xs text-white/40 mt-0.5 hidden sm:block">Broadcast Meta-approved templates</p>
+              </div>
             </div>
             {/* Tabs */}
-            <div className="flex items-center gap-1 bg-white/[0.04] rounded-lg p-1 border border-white/[0.06]">
+            <div className="flex items-center gap-0.5 md:gap-1 bg-white/[0.04] rounded-lg p-1 border border-white/[0.06]">
               {(["broadcast", "templates", "history"] as Tab[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className={`px-4 py-1.5 rounded-md text-xs font-medium capitalize transition-all ${
+                  className={`px-2.5 md:px-4 py-1.5 rounded-md text-[11px] md:text-xs font-medium capitalize transition-all ${
                     tab === t
                       ? "bg-white/[0.1] text-white border border-white/[0.1]"
                       : "text-white/40 hover:text-white/60"
@@ -287,10 +314,10 @@ export default function CampaignsPage() {
         <div className="flex-1 overflow-y-auto">
           {/* BROADCAST TAB */}
           {tab === "broadcast" && (
-            <div className="flex gap-6 p-8 h-full">
+            <div className="flex flex-col lg:flex-row gap-6 p-4 md:p-8">
               {/* Form */}
-              <div className="flex-1 max-w-xl">
-                <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6 space-y-5">
+              <div className="flex-1 lg:max-w-xl">
+                <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-4 md:p-6 space-y-5">
                   {/* Campaign Name */}
                   <div>
                     <label className="text-xs font-medium text-white/50 uppercase tracking-wider block mb-2">Campaign Name</label>
@@ -412,7 +439,7 @@ export default function CampaignsPage() {
                   {/* Recipients */}
                   <div>
                     <label className="text-xs font-medium text-white/50 uppercase tracking-wider block mb-2">Recipients</label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {/* Manual */}
                       <div>
                         <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Manual Numbers</p>
@@ -494,8 +521,8 @@ export default function CampaignsPage() {
                 </div>
               </div>
 
-              {/* Phone Preview */}
-              <div className="flex flex-col items-center justify-center gap-4 flex-shrink-0">
+              {/* Phone Preview - hidden on mobile */}
+              <div className="hidden lg:flex flex-col items-center justify-center gap-4 flex-shrink-0">
                 <p className="text-[10px] text-white/30 uppercase tracking-wider">Message Preview</p>
                 <div className="w-[240px] h-[420px] rounded-[36px] border-[6px] border-[#1e1e1e] bg-[#e5ddd5] shadow-2xl flex flex-col overflow-hidden relative">
                   {/* Notch */}
@@ -560,7 +587,7 @@ export default function CampaignsPage() {
 
           {/* TEMPLATES TAB */}
           {tab === "templates" && (
-            <div className="p-8">
+            <div className="p-4 md:p-8">
               <div className="flex items-center justify-between mb-5">
                 <p className="text-xs text-white/40">{templates.length} approved template{templates.length !== 1 ? "s" : ""}</p>
                 <button onClick={fetchTemplates} className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5">
@@ -575,7 +602,7 @@ export default function CampaignsPage() {
               ) : templates.length === 0 ? (
                 <div className="text-sm text-white/30 py-12 text-center">No approved templates found.</div>
               ) : (
-                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {templates.map((t) => {
                     const body = t.components?.find((c) => c.type === "BODY")?.text;
                     const footer = t.components?.find((c) => c.type === "FOOTER")?.text;
@@ -638,7 +665,7 @@ export default function CampaignsPage() {
 
           {/* HISTORY TAB */}
           {tab === "history" && (
-            <div className="p-8">
+            <div className="p-4 md:p-8">
               <div className="flex items-center justify-between mb-5">
                 <p className="text-xs text-white/40">{history.length} campaign{history.length !== 1 ? "s" : ""}</p>
                 <button onClick={fetchHistory} className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5">
@@ -655,7 +682,7 @@ export default function CampaignsPage() {
               ) : (
                 <div className="space-y-3">
                   {history.map((c) => (
-                    <div key={c.id} className="bg-white/[0.03] border border-white/[0.07] rounded-2xl px-5 py-4 flex items-center gap-5">
+                    <div key={c.id} className="bg-white/[0.03] border border-white/[0.07] rounded-2xl px-4 md:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2.5 mb-1">
                           <p className="text-sm font-medium text-white truncate">{c.name}</p>
@@ -670,16 +697,16 @@ export default function CampaignsPage() {
                         </div>
                         <p className="text-xs text-white/40">Template: {c.template_name} · {formatDate(c.created_at)}</p>
                       </div>
-                      <div className="flex items-center gap-6 flex-shrink-0 text-center">
-                        <div>
+                      <div className="flex items-center gap-6 flex-shrink-0">
+                        <div className="text-center">
                           <p className="text-lg font-semibold text-white">{c.total_recipients}</p>
                           <p className="text-[10px] text-white/30">Total</p>
                         </div>
-                        <div>
+                        <div className="text-center">
                           <p className="text-lg font-semibold text-emerald-400">{c.sent_count}</p>
                           <p className="text-[10px] text-white/30">Sent</p>
                         </div>
-                        <div>
+                        <div className="text-center">
                           <p className="text-lg font-semibold text-red-400">{c.failed_count}</p>
                           <p className="text-[10px] text-white/30">Failed</p>
                         </div>

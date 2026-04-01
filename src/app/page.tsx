@@ -107,36 +107,59 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-screen bg-[#0f0f0f] font-sans">
-      {/* Sidebar */}
-      <div className="w-[260px] flex flex-col border-r border-white/[0.06]" style={{ background: "#141414" }}>
-        {/* Sidebar Header */}
-        <div className="px-5 py-4 border-b border-white/[0.06]">
+    <div className="flex h-screen" style={{ background: "#111b21" }}>
+      {/* Sidebar - hidden on mobile when a conversation is selected */}
+      <div className={`${selectedId ? "hidden md:flex" : "flex"} w-full md:w-[420px] flex-col border-r`} style={{ background: "#111b21", borderColor: "#313d45" }}>
+        {/* Header bar */}
+        <div className="h-[60px] px-4 flex items-center justify-between" style={{ background: "#202c33" }}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "#00a884" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             </div>
-            <h1 className="text-sm font-semibold text-white leading-tight">WhatsApp AI</h1>
+            <span className="text-[15px] font-medium" style={{ color: "#e9edef" }}>WhatsApp AI</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Link href="/campaigns" className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors" title="Campaigns">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#aebac1" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 2L11 13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </Link>
+            <Link href="/settings" className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors" title="Settings">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#aebac1" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </Link>
+            <button
+              onClick={async () => {
+                const { createSupabaseBrowserClient } = await import("@/lib/supabase-browser");
+                const sb = createSupabaseBrowserClient();
+                await sb.auth.signOut();
+                window.location.href = "/login";
+              }}
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors"
+              title="Sign out"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aebac1" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        {/* Nav */}
-        <nav className="flex flex-col gap-1 p-3 border-b border-white/[0.06]">
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white bg-white/[0.08] border border-white/[0.08]">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        {/* Search bar */}
+        <div className="px-3 py-2" style={{ background: "#111b21" }}>
+          <div className="flex items-center gap-6 rounded-lg px-4 py-1.5" style={{ background: "#202c33" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696a0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            Conversations
+            <span className="text-[13px]" style={{ color: "#8696a0" }}>Search or start new chat</span>
           </div>
-          <Link href="/campaigns" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white/80 hover:bg-white/[0.04] transition-all">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 2L11 13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-            Campaigns
-          </Link>
-        </nav>
+        </div>
 
         {/* Conversation List */}
         <div className="flex-1 overflow-y-auto min-h-0">
@@ -200,29 +223,10 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* Sign out */}
-        <div className="p-3 border-t border-white/[0.06]">
-          <button
-            onClick={async () => {
-              const { createSupabaseBrowserClient } = await import("@/lib/supabase-browser");
-              const supabase = createSupabaseBrowserClient();
-              await supabase.auth.signOut();
-              window.location.href = "/login";
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            Sign out
-          </button>
-        </div>
       </div>
 
-      {/* Chat Panel */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Chat Panel - hidden on mobile when no conversation is selected */}
+      <div className={`${selectedId ? "flex" : "hidden md:flex"} flex-1 flex-col min-w-0`}>
         {!selected ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center">
@@ -238,34 +242,44 @@ export default function Dashboard() {
         ) : (
           <>
             {/* Chat Header */}
-            <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between" style={{ background: "#141414" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-white text-xs font-semibold">
+            <div className="px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] flex items-center justify-between gap-3" style={{ background: "#141414" }}>
+              <div className="flex items-center gap-3 min-w-0">
+                {/* Back button - mobile only */}
+                <button
+                  onClick={() => setSelectedId(null)}
+                  className="md:hidden flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/[0.06] transition-colors"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                </button>
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
                   {getInitials(selected.name, selected.phone)}
                 </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-white leading-tight">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold text-white leading-tight truncate">
                     {selected.name || selected.phone}
                   </h2>
-                  <p className="text-xs text-white/40 leading-tight mt-0.5">{selected.phone}</p>
+                  <p className="text-xs text-white/40 leading-tight mt-0.5 truncate">{selected.phone}</p>
                 </div>
               </div>
               <button
                 onClick={toggleMode}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex-shrink-0 ${
                   selected.mode === "agent"
                     ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20"
                     : "bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/20"
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${selected.mode === "agent" ? "bg-emerald-400" : "bg-amber-400"}`} />
-                {selected.mode === "agent" ? "AI Mode" : "Human Mode"}
+                <span className="hidden sm:inline">{selected.mode === "agent" ? "AI Mode" : "Human Mode"}</span>
+                <span className="sm:hidden">{selected.mode === "agent" ? "AI" : "Human"}</span>
               </button>
             </div>
 
             {/* Messages */}
             <div
-              className="flex-1 overflow-y-auto px-6 py-5 space-y-4"
+              className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-5 space-y-4"
               style={{
                 backgroundImage: "radial-gradient(circle at 20% 80%, rgba(16,185,129,0.03) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(16,185,129,0.02) 0%, transparent 50%)",
               }}
@@ -278,9 +292,9 @@ export default function Dashboard() {
                     key={msg.id}
                     className={`flex ${isUser ? "justify-start" : "justify-end"}`}
                   >
-                    <div className={`flex flex-col ${isUser ? "items-start" : "items-end"} max-w-[65%]`}>
+                    <div className={`flex flex-col ${isUser ? "items-start" : "items-end"} max-w-[85%] md:max-w-[65%]`}>
                       <div
-                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                        className={`px-3.5 md:px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                           isUser
                             ? "bg-white/[0.07] text-white/90 rounded-tl-sm border border-white/[0.06]"
                             : "bg-emerald-600 text-white rounded-tr-sm"
@@ -302,8 +316,8 @@ export default function Dashboard() {
             </div>
 
             {/* Input Bar */}
-            <div className="px-6 py-4 border-t border-white/[0.06]" style={{ background: "#141414" }}>
-              <div className="flex items-center gap-3 bg-white/[0.06] rounded-xl px-4 py-2.5 border border-white/[0.06] focus-within:border-emerald-500/40 transition-colors">
+            <div className="px-3 md:px-6 py-3 md:py-4 border-t border-white/[0.06]" style={{ background: "#141414" }}>
+              <div className="flex items-center gap-3 bg-white/[0.06] rounded-xl px-3 md:px-4 py-2.5 border border-white/[0.06] focus-within:border-emerald-500/40 transition-colors">
                 <input
                   type="text"
                   value={input}

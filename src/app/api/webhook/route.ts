@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
-import { getAIResponse } from "@/lib/ai";
+import { getAIResponse, isAutoReplyEnabled } from "@/lib/ai";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -91,18 +91,20 @@ export async function POST(request: NextRequest) {
       .update({ updated_at: new Date().toISOString() })
       .eq("id", conversation.id);
 
-    // If mode is 'human', don't auto-reply
-    if (conversation.mode === "human") {
+    // If mode is 'human' or auto-reply is disabled globally, don't auto-reply
+    const autoReply = await isAutoReplyEnabled();
+    if (conversation.mode === "human" || !autoReply) {
       return Response.json({ status: "stored_for_human" });
     }
 
     // Fetch conversation history (last 20 messages for context)
-    const { data: history } = await supabase
+    const { data: historyDesc } = await supabase
       .from("messages")
       .select("role, content")
       .eq("conversation_id", conversation.id)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(20);
+    const history = (historyDesc || []).reverse();
 
     // Get AI response
     const aiResponse = await getAIResponse(

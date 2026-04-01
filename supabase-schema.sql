@@ -48,3 +48,16 @@ create table campaign_recipients (
 );
 
 create index idx_campaign_recipients_campaign on campaign_recipients(campaign_id);
+
+-- Settings (single-row config table)
+create table settings (
+  id int primary key default 1 check (id = 1),
+  system_prompt text not null default '',
+  ai_model text not null default 'gpt-4o-mini',
+  temperature numeric(3,2) not null default 0.7,
+  max_context_messages int not null default 20,
+  auto_reply_enabled boolean not null default true,
+  default_conversation_mode text not null default 'agent' check (default_conversation_mode in ('agent', 'human')),
+  agent_name text not null default 'Pallavi',
+  updated_at timestamp with time zone default now()
+);
