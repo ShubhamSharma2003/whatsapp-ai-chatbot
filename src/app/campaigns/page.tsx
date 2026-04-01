@@ -202,7 +202,7 @@ export default function CampaignsPage() {
   return (
     <div className="flex h-screen bg-[#0f0f0f] font-sans">
       {/* Sidebar */}
-      <div className="w-[220px] flex flex-col border-r border-white/[0.06]" style={{ background: "#141414" }}>
+      <div className="w-[260px] flex flex-col border-r border-white/[0.06]" style={{ background: "#141414" }}>
         <div className="px-5 py-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
@@ -213,7 +213,7 @@ export default function CampaignsPage() {
             <h1 className="text-sm font-semibold text-white leading-tight">WhatsApp AI</h1>
           </div>
         </div>
-        <nav className="flex flex-col gap-1 p-3">
+        <nav className="flex flex-col gap-1 p-3 flex-1">
           <Link
             href="/"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white/80 hover:bg-white/[0.04] transition-all"
@@ -233,6 +233,26 @@ export default function CampaignsPage() {
             Campaigns
           </Link>
         </nav>
+
+        {/* Sign out */}
+        <div className="p-3 border-t border-white/[0.06]">
+          <button
+            onClick={async () => {
+              const { createSupabaseBrowserClient } = await import("@/lib/supabase-browser");
+              const supabase = createSupabaseBrowserClient();
+              await supabase.auth.signOut();
+              window.location.href = "/login";
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Sign out
+          </button>
+        </div>
       </div>
 
       {/* Main */}
