@@ -19,8 +19,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json();
 
+  console.log("=== WEBHOOK RECEIVED ===");
+  console.log("Full body:", JSON.stringify(body, null, 2));
+  console.log("Object type:", body.object);
+
   // Only process whatsapp_business_account events
   if (body.object !== "whatsapp_business_account") {
+    console.log("❌ Ignored - wrong object type:", body.object);
     return Response.json({ status: "ignored" });
   }
 
@@ -28,10 +33,16 @@ export async function POST(request: NextRequest) {
   const changes = entry?.changes?.[0];
   const value = changes?.value;
 
+  console.log("Entry:", JSON.stringify(entry, null, 2));
+  console.log("Value:", JSON.stringify(value, null, 2));
+
   // Only process actual messages (not status updates)
   if (!value?.messages?.[0]) {
+    console.log("❌ No message found. Status updates only:", value?.statuses);
     return Response.json({ status: "no_message" });
   }
+
+  console.log("✅ Message found:", value.messages[0]);
 
   const message = value.messages[0];
   const contact = value.contacts?.[0];
@@ -47,21 +58,35 @@ export async function POST(request: NextRequest) {
   const whatsappMsgId = message.id;
 
   try {
+    console.log("📱 Processing message from:", phone);
+    console.log("📝 Message text:", text);
+
     // Find or create conversation
-    let { data: conversation } = await supabase
+    let { data: conversation, error: convoError } = await supabase
       .from("conversations")
       .select("*")
       .eq("phone", phone)
       .single();
 
+    if (convoError) {
+      console.log("⚠️ Conversation query error:", convoError);
+    }
+
     if (!conversation) {
-      const { data: newConvo } = await supabase
+      console.log("🆕 Creating new conversation for:", phone);
+      const { data: newConvo, error: insertConvoError } = await supabase
         .from("conversations")
         .insert({ phone, name })
         .select()
         .single();
+      if (insertConvoError) {
+        console.error("❌ Failed to create conversation:", insertConvoError);
+        return Response.json({ error: insertConvoError.message }, { status: 500 });
+      }
       conversation = newConvo;
+      console.log("✅ Conversation created:", conversation.id);
     } else if (name && name !== conversation.name) {
+      console.log("📝 Updating conversation name:", name);
       await supabase
         .from("conversations")
         .update({ name })
@@ -69,21 +94,28 @@ export async function POST(request: NextRequest) {
     }
 
     if (!conversation) {
+      console.error("❌ No conversation available");
       return Response.json({ error: "Failed to create conversation" }, { status: 500 });
     }
 
     // Store user message (ignore duplicates)
-    const { error: insertError } = await supabase.from("messages").insert({
+    console.log("💾 Storing message in conversation:", conversation.id);
+    const { error: insertError, data: msgData } = await supabase.from("messages").insert({
       conversation_id: conversation.id,
       role: "user",
       content: text,
       whatsapp_msg_id: whatsappMsgId,
-    });
+    }).select();
 
     if (insertError?.code === "23505") {
-      // Duplicate message, ignore
+      console.log("⚠️ Duplicate message, ignoring");
       return Response.json({ status: "duplicate" });
     }
+    if (insertError) {
+      console.error("❌ Failed to store message:", insertError);
+      return Response.json({ error: insertError.message }, { status: 500 });
+    }
+    console.log("✅ Message stored successfully");
 
     // Update conversation timestamp
     await supabase

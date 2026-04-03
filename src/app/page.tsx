@@ -87,14 +87,16 @@ export default function Dashboard() {
   async function handleSend() {
     if (!input.trim() || !selectedId || sending) return;
     setSending(true);
-    await fetch(`/api/conversations/${selectedId}/send`, {
+    const res = await fetch(`/api/conversations/${selectedId}/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: input.trim() }),
     });
+    if (res.ok) {
+      await fetchMessages(selectedId);
+    }
     setInput("");
     setSending(false);
-    fetchMessages(selectedId);
   }
 
   function formatTime(dateStr: string) {
