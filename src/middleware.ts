@@ -1,5 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+
+const SUPERADMIN_EMAIL = "admin@uniselrealty.com";
+
+// Map route prefixes to required features
+const FEATURE_ROUTES: Record<string, string> = {
+  "/campaigns": "campaigns",
+  "/settings": "settings",
+  "/admin": "admin",
+};
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -25,7 +35,9 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
   const { pathname } = request.nextUrl;
 
@@ -49,6 +61,37 @@ export async function middleware(request: NextRequest) {
   // Redirect unauthenticated users to login
   if (!session) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // Check app_users record for feature-based access on protected pages
+  const email = session.user.email;
+  const isSuperAdmin = email === SUPERADMIN_EMAIL;
+
+  if (!isSuperAdmin) {
+    // Check if this route requires a specific feature
+    for (const [routePrefix, feature] of Object.entries(FEATURE_ROUTES)) {
+      if (pathname.startsWith(routePrefix)) {
+        // Fetch user's allowed features using service role
+        const adminClient = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+        const { data: appUser } = await adminClient
+          .from("app_users")
+          .select("allowed_features")
+          .eq("id", session.user.id)
+          .single();
+
+        if (
+          !appUser ||
+          !appUser.allowed_features.includes(feature)
+        ) {
+          // Redirect to home with no access
+          return NextResponse.redirect(new URL("/", request.url));
+        }
+        break;
+      }
+    }
   }
 
   return supabaseResponse;

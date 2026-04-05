@@ -19,3 +19,15 @@ export interface Message {
 export interface ConversationWithLastMessage extends Conversation {
   last_message: string | null;
 }
+
+export type Feature = "dashboard" | "campaigns" | "settings" | "admin";
+
+export interface AppUser {
+  id: string;
+  email: string;
+  role: "superadmin" | "user";
+  allowed_features: Feature[];
+  allowed_phones: string[];
+  created_at: string;
+  updated_at: string;
+}

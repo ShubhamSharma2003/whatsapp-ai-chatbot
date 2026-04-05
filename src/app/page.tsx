@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import Link from "next/link";
-import type { ConversationWithLastMessage, Message } from "@/lib/types";
+import type { ConversationWithLastMessage, Message, AppUser } from "@/lib/types";
 
 export default function Dashboard() {
   const supabase = createSupabaseBrowserClient();
@@ -14,8 +14,13 @@ export default function Dashboard() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
 
   const selected = conversations.find((c) => c.id === selectedId);
+
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then(setAppUser).catch(() => {});
+  }, []);
 
   const fetchConversations = useCallback(async () => {
     const res = await fetch("/api/conversations");
@@ -134,6 +139,16 @@ export default function Dashboard() {
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
             </Link>
+            {appUser?.role === "superadmin" && (
+              <Link href="/admin/users" className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors" title="User Management">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#aebac1" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </Link>
+            )}
             <button
               onClick={async () => {
                 const { createSupabaseBrowserClient } = await import("@/lib/supabase-browser");

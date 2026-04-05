@@ -61,3 +61,18 @@ create table settings (
   agent_name text not null default 'Pallavi',
   updated_at timestamp with time zone default now()
 );
+
+-- User management (RBAC)
+create table app_users (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text unique not null,
+  role text not null default 'user' check (role in ('superadmin', 'user')),
+  allowed_features text[] not null default '{}',
+  allowed_phones text[] not null default '{}',
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+-- Seed superadmin row (run after creating the auth user for admin@uniselrealty.com)
+-- insert into app_users (id, email, role, allowed_features, allowed_phones)
+-- values ('<auth-user-uuid>', 'admin@uniselrealty.com', 'superadmin', '{"dashboard","campaigns","settings","admin"}', '{}');

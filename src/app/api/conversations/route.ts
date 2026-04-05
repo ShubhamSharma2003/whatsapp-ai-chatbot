@@ -1,11 +1,24 @@
 import { supabase } from "@/lib/supabase";
+import { getCurrentAppUser } from "@/lib/auth";
 
 export async function GET() {
-  // Get all conversations with their latest message
-  const { data: conversations, error } = await supabase
+  const appUser = await getCurrentAppUser();
+
+  // Build query
+  let query = supabase
     .from("conversations")
     .select("*")
     .order("updated_at", { ascending: false });
+
+  // Non-superadmin users only see their allowed phones
+  if (appUser && appUser.role !== "superadmin" && appUser.allowed_phones.length > 0) {
+    query = query.in("phone", appUser.allowed_phones);
+  } else if (appUser && appUser.role !== "superadmin" && appUser.allowed_phones.length === 0) {
+    // User has no phones assigned — return empty
+    return Response.json([]);
+  }
+
+  const { data: conversations, error } = await query;
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
