@@ -173,6 +173,7 @@ export default function CampaignsPage() {
         phones,
         templateParams,
         headerImageUrl: headerImageUrl || undefined,
+        templateBody: selectedTemplate.components?.find((c) => c.type === "BODY")?.text || "",
       }),
     });
     const data = await res.json();

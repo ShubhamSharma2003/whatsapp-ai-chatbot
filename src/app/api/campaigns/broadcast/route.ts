@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
-  const { name, templateName, templateLanguage, phones, templateParams, headerImageUrl } = await request.json();
+  const { name, templateName, templateLanguage, phones, templateParams, headerImageUrl, templateBody } = await request.json();
 
   console.log("Broadcast — headerImageUrl:", headerImageUrl);
 
@@ -92,6 +92,50 @@ export async function POST(request: NextRequest) {
           .eq("campaign_id", campaign.id)
           .eq("phone", cleanPhone);
         sentCount++;
+
+        // Store broadcast message in conversations so it appears on the dashboard
+        try {
+          // Find or create conversation for this phone
+          let { data: conversation } = await supabase
+            .from("conversations")
+            .select("id")
+            .eq("phone", cleanPhone)
+            .single();
+
+          if (!conversation) {
+            const { data: newConvo } = await supabase
+              .from("conversations")
+              .insert({ phone: cleanPhone })
+              .select("id")
+              .single();
+            conversation = newConvo;
+          }
+
+          if (conversation) {
+            // Build the full resolved message from the template body
+            let resolvedBody = templateBody || "";
+            if (templateParams) {
+              resolvedBody = resolvedBody.replace(/\{\{(\d+)\}\}/g, (_: string, num: string) => templateParams[num] || `{{${num}}}`);
+            }
+            const messageContent = `📢 Broadcast: ${templateName}\n${resolvedBody}${headerImageUrl ? `\n[Image: ${headerImageUrl}]` : ""}`;
+
+            const waMessageId = result.messages?.[0]?.id || null;
+
+            await supabase.from("messages").insert({
+              conversation_id: conversation.id,
+              role: "assistant",
+              content: messageContent,
+              ...(waMessageId ? { whatsapp_msg_id: waMessageId } : {}),
+            });
+
+            await supabase
+              .from("conversations")
+              .update({ updated_at: new Date().toISOString() })
+              .eq("id", conversation.id);
+          }
+        } catch (convErr) {
+          console.error("Failed to store broadcast in conversation for", cleanPhone, convErr);
+        }
       } else {
         const errorMsg = result.error?.message || JSON.stringify(result);
         console.error(`Meta API error for ${cleanPhone}:`, JSON.stringify(result));
