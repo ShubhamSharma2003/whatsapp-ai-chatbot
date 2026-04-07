@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import type { AppUser } from "@/lib/types";
 
-type Tab = "broadcast" | "templates" | "history";
+type Tab = "broadcast" | "templates" | "history" | "report";
 
 type TemplateButton = {
   type: string;
@@ -39,7 +39,39 @@ type Campaign = {
   total_recipients: number;
   sent_count: number;
   failed_count: number;
+  delivered_count: number;
+  read_count: number;
+  replied_count: number;
+  has_buttons: boolean;
+  template_buttons: TemplateButton[] | null;
   created_at: string;
+};
+
+type CampaignRecipient = {
+  phone: string;
+  status: string;
+  error: string | null;
+  whatsapp_msg_id: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+  replied_at: string | null;
+  created_at: string;
+};
+
+type CampaignReport = {
+  campaign: Campaign;
+  recipients: CampaignRecipient[];
+  summary: {
+    total: number;
+    sent: number;
+    delivered: number;
+    read: number;
+    replied: number;
+    failed: number;
+    delivery_rate: number;
+    read_rate: number;
+    reply_rate: number;
+  };
 };
 
 export default function CampaignsPage() {
@@ -50,6 +82,8 @@ export default function CampaignsPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [report, setReport] = useState<CampaignReport | null>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then(setAppUser).catch(() => {});
@@ -125,6 +159,15 @@ export default function CampaignsPage() {
     setLoadingHistory(false);
   }, []);
 
+  const fetchReport = useCallback(async (campaignId: string) => {
+    setLoadingReport(true);
+    setReport(null);
+    const res = await fetch(`/api/campaigns/${campaignId}/report`);
+    const data = await res.json();
+    if (data.campaign) setReport(data);
+    setLoadingReport(false);
+  }, []);
+
   useEffect(() => {
     fetchTemplates();
   }, [fetchTemplates]);
@@ -180,6 +223,7 @@ export default function CampaignsPage() {
         templateParams,
         headerImageUrl: headerImageUrl || undefined,
         templateBody: selectedTemplate.components?.find((c) => c.type === "BODY")?.text || "",
+        templateButtons: getButtons(selectedTemplate),
       }),
     });
     const data = await res.json();
@@ -314,7 +358,7 @@ export default function CampaignsPage() {
             </div>
             {/* Tabs */}
             <div className="flex items-center gap-0.5 md:gap-1 bg-white/[0.04] rounded-lg p-1 border border-white/[0.06]">
-              {(["broadcast", "templates", "history"] as Tab[]).map((t) => (
+              {(["broadcast", "templates", "history", ...(tab === "report" ? ["report" as Tab] : [])] as Tab[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -324,7 +368,7 @@ export default function CampaignsPage() {
                       : "text-white/40 hover:text-white/60"
                   }`}
                 >
-                  {t}
+                  {t === "report" ? `Report` : t}
                 </button>
               ))}
             </div>
@@ -684,6 +728,122 @@ export default function CampaignsPage() {
             </div>
           )}
 
+          {/* REPORT TAB */}
+          {tab === "report" && (
+            <div className="p-4 md:p-8">
+              {loadingReport ? (
+                <div className="text-sm text-white/30 py-12 text-center">Loading report...</div>
+              ) : !report ? (
+                <div className="text-sm text-white/30 py-12 text-center">No report data available.</div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Header */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">{report.campaign.name}</h3>
+                      <p className="text-xs text-white/40 mt-1">Template: {report.campaign.template_name} · {formatDate(report.campaign.created_at)}</p>
+                    </div>
+                    <button
+                      onClick={() => fetchReport(report.campaign.id)}
+                      className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                      </svg>
+                      Refresh
+                    </button>
+                  </div>
+
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {[
+                      { label: "Total", value: report.summary.total, color: "text-white" },
+                      { label: "Sent", value: report.summary.sent, color: "text-blue-400" },
+                      { label: "Delivered", value: report.summary.delivered, color: "text-emerald-400" },
+                      { label: "Read", value: report.summary.read, color: "text-purple-400" },
+                      { label: "Replied", value: report.summary.replied, color: "text-amber-400" },
+                      { label: "Failed", value: report.summary.failed, color: "text-red-400" },
+                    ].map((stat) => (
+                      <div key={stat.label} className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 text-center">
+                        <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+                        <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">{stat.label}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Rate Bars */}
+                  <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-5 space-y-4">
+                    <h4 className="text-xs font-medium text-white/50 uppercase tracking-wider">Performance Rates</h4>
+                    {[
+                      { label: "Delivery Rate", value: report.summary.delivery_rate, color: "bg-emerald-500" },
+                      { label: "Read Rate", value: report.summary.read_rate, color: "bg-purple-500" },
+                      { label: "Reply Rate", value: report.summary.reply_rate, color: "bg-amber-500" },
+                    ].map((rate) => (
+                      <div key={rate.label}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs text-white/60">{rate.label}</span>
+                          <span className="text-xs font-semibold text-white">{rate.value}%</span>
+                        </div>
+                        <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
+                          <div className={`h-full ${rate.color} rounded-full transition-all duration-500`} style={{ width: `${rate.value}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Recipients Table */}
+                  <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl overflow-hidden">
+                    <div className="px-5 py-3 border-b border-white/[0.06]">
+                      <h4 className="text-xs font-medium text-white/50 uppercase tracking-wider">Recipients Detail</h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-white/[0.06]">
+                            <th className="text-left px-4 py-2.5 text-white/40 font-medium">Phone</th>
+                            <th className="text-left px-4 py-2.5 text-white/40 font-medium">Status</th>
+                            <th className="text-left px-4 py-2.5 text-white/40 font-medium hidden sm:table-cell">Delivered</th>
+                            <th className="text-left px-4 py-2.5 text-white/40 font-medium hidden sm:table-cell">Read</th>
+                            <th className="text-left px-4 py-2.5 text-white/40 font-medium hidden md:table-cell">Replied</th>
+                            <th className="text-left px-4 py-2.5 text-white/40 font-medium hidden lg:table-cell">Error</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {report.recipients.map((r, i) => (
+                            <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                              <td className="px-4 py-2.5 text-white/70 font-mono">{r.phone}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                  r.status === "read" ? "bg-purple-500/15 text-purple-400" :
+                                  r.status === "delivered" ? "bg-emerald-500/15 text-emerald-400" :
+                                  r.status === "sent" ? "bg-blue-500/15 text-blue-400" :
+                                  r.status === "failed" ? "bg-red-500/15 text-red-400" :
+                                  "bg-white/10 text-white/40"
+                                }`}>
+                                  {r.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-white/40 hidden sm:table-cell">{r.delivered_at ? formatDate(r.delivered_at) : "—"}</td>
+                              <td className="px-4 py-2.5 text-white/40 hidden sm:table-cell">{r.read_at ? formatDate(r.read_at) : "—"}</td>
+                              <td className="px-4 py-2.5 hidden md:table-cell">
+                                {r.replied_at ? (
+                                  <span className="text-amber-400">{formatDate(r.replied_at)}</span>
+                                ) : (
+                                  <span className="text-white/30">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2.5 text-red-400/70 hidden lg:table-cell max-w-[200px] truncate">{r.error || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* HISTORY TAB */}
           {tab === "history" && (
             <div className="p-4 md:p-8">
@@ -715,10 +875,13 @@ export default function CampaignsPage() {
                           }`}>
                             {c.status}
                           </span>
+                          {c.has_buttons && (
+                            <span className="text-[9px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 font-medium">Buttons</span>
+                          )}
                         </div>
                         <p className="text-xs text-white/40">Template: {c.template_name} · {formatDate(c.created_at)}</p>
                       </div>
-                      <div className="flex items-center gap-6 flex-shrink-0">
+                      <div className="flex items-center gap-4 md:gap-6 flex-shrink-0">
                         <div className="text-center">
                           <p className="text-lg font-semibold text-white">{c.total_recipients}</p>
                           <p className="text-[10px] text-white/30">Total</p>
@@ -731,6 +894,12 @@ export default function CampaignsPage() {
                           <p className="text-lg font-semibold text-red-400">{c.failed_count}</p>
                           <p className="text-[10px] text-white/30">Failed</p>
                         </div>
+                        <button
+                          onClick={() => { fetchReport(c.id); setTab("report"); }}
+                          className="px-3 py-1.5 rounded-lg border border-white/[0.1] text-xs text-white/60 hover:text-white hover:bg-white/[0.06] transition-all"
+                        >
+                          View Report
+                        </button>
                       </div>
                     </div>
                   ))}

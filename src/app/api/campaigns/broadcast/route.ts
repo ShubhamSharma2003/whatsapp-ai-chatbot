@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
-  const { name, templateName, templateLanguage, phones, templateParams, headerImageUrl, templateBody } = await request.json();
+  const { name, templateName, templateLanguage, phones, templateParams, headerImageUrl, templateBody, templateButtons } = await request.json();
 
   console.log("Broadcast — headerImageUrl:", headerImageUrl);
 
   if (!name || !templateName || !phones?.length) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
+
+  const hasButtons = Array.isArray(templateButtons) && templateButtons.length > 0;
 
   // Create campaign record
   const { data: campaign, error: campaignError } = await supabase
@@ -19,6 +21,8 @@ export async function POST(request: NextRequest) {
       template_language: templateLanguage || "en",
       status: "sending",
       total_recipients: phones.length,
+      has_buttons: hasButtons,
+      template_buttons: hasButtons ? templateButtons : null,
     })
     .select()
     .single();
@@ -86,9 +90,10 @@ export async function POST(request: NextRequest) {
       const result = await res.json();
 
       if (res.ok && !result.error) {
+        const waMessageId = result.messages?.[0]?.id || null;
         await supabase
           .from("campaign_recipients")
-          .update({ status: "sent" })
+          .update({ status: "sent", whatsapp_msg_id: waMessageId })
           .eq("campaign_id", campaign.id)
           .eq("phone", cleanPhone);
         sentCount++;
@@ -119,12 +124,11 @@ export async function POST(request: NextRequest) {
             }
             const messageContent = `📢 Broadcast: ${templateName}\n${resolvedBody}${headerImageUrl ? `\n[Image: ${headerImageUrl}]` : ""}`;
 
-            const waMessageId = result.messages?.[0]?.id || null;
-
             await supabase.from("messages").insert({
               conversation_id: conversation.id,
               role: "assistant",
               content: messageContent,
+              campaign_id: campaign.id,
               ...(waMessageId ? { whatsapp_msg_id: waMessageId } : {}),
             });
 

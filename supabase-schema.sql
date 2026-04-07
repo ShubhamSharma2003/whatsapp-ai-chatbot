@@ -76,3 +76,35 @@ create table app_users (
 -- Seed superadmin row (run after creating the auth user for admin@uniselrealty.com)
 -- insert into app_users (id, email, role, allowed_features, allowed_phones)
 -- values ('<auth-user-uuid>', 'admin@uniselrealty.com', 'superadmin', '{"dashboard","campaigns","settings","admin"}', '{}');
+
+-- ============================================================
+-- Campaign Reporting & Tracking (run this migration)
+-- ============================================================
+
+-- Add delivery status tracking to campaign_recipients
+alter table campaign_recipients
+  add column if not exists whatsapp_msg_id text,
+  add column if not exists delivered_at timestamp with time zone,
+  add column if not exists read_at timestamp with time zone,
+  add column if not exists replied_at timestamp with time zone,
+  drop constraint if exists campaign_recipients_status_check;
+
+alter table campaign_recipients
+  add constraint campaign_recipients_status_check
+  check (status in ('pending', 'sent', 'delivered', 'read', 'failed'));
+
+create index if not exists idx_campaign_recipients_wamid on campaign_recipients(whatsapp_msg_id);
+
+-- Add report summary columns to campaigns
+alter table campaigns
+  add column if not exists delivered_count int not null default 0,
+  add column if not exists read_count int not null default 0,
+  add column if not exists replied_count int not null default 0,
+  add column if not exists has_buttons boolean not null default false,
+  add column if not exists template_buttons jsonb;
+
+-- Add campaign_id to messages so we can link replies back to a campaign
+alter table messages
+  add column if not exists campaign_id uuid references campaigns(id) on delete set null;
+
+create index if not exists idx_messages_campaign on messages(campaign_id);
