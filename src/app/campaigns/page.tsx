@@ -168,6 +168,62 @@ export default function CampaignsPage() {
     setLoadingReport(false);
   }, []);
 
+  const exportReportCSV = useCallback(() => {
+    if (!report) return;
+    const { campaign, recipients, summary } = report;
+
+    // Helper to escape CSV fields
+    const esc = (v: string) => {
+      if (v.includes(",") || v.includes('"') || v.includes("\n")) {
+        return `"${v.replace(/"/g, '""')}"`;
+      }
+      return v;
+    };
+
+    const lines: string[] = [];
+
+    // Campaign summary section
+    lines.push("Campaign Report");
+    lines.push(`Campaign Name,${esc(campaign.name)}`);
+    lines.push(`Template,${esc(campaign.template_name)}`);
+    lines.push(`Language,${esc(campaign.template_language)}`);
+    lines.push(`Status,${esc(campaign.status)}`);
+    lines.push(`Created,${esc(campaign.created_at)}`);
+    lines.push("");
+    lines.push("Summary");
+    lines.push(`Total Recipients,${summary.total}`);
+    lines.push(`Sent,${summary.sent}`);
+    lines.push(`Delivered,${summary.delivered}`);
+    lines.push(`Read,${summary.read}`);
+    lines.push(`Replied,${summary.replied}`);
+    lines.push(`Failed,${summary.failed}`);
+    lines.push(`Delivery Rate,${summary.delivery_rate}%`);
+    lines.push(`Read Rate,${summary.read_rate}%`);
+    lines.push(`Reply Rate,${summary.reply_rate}%`);
+    lines.push("");
+
+    // Recipients detail
+    lines.push("Phone,Status,Delivered At,Read At,Replied At,Error");
+    for (const r of recipients) {
+      lines.push([
+        esc(r.phone),
+        esc(r.status),
+        r.delivered_at ? esc(r.delivered_at) : "",
+        r.read_at ? esc(r.read_at) : "",
+        r.replied_at ? esc(r.replied_at) : "",
+        r.error ? esc(r.error) : "",
+      ].join(","));
+    }
+
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${campaign.name.replace(/[^a-zA-Z0-9_-]/g, "_")}_report.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [report]);
+
   useEffect(() => {
     fetchTemplates();
   }, [fetchTemplates]);
@@ -743,15 +799,26 @@ export default function CampaignsPage() {
                       <h3 className="text-lg font-semibold text-white">{report.campaign.name}</h3>
                       <p className="text-xs text-white/40 mt-1">Template: {report.campaign.template_name} · {formatDate(report.campaign.created_at)}</p>
                     </div>
-                    <button
-                      onClick={() => fetchReport(report.campaign.id)}
-                      className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                      </svg>
-                      Refresh
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={exportReportCSV}
+                        className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        Export CSV
+                      </button>
+                      <button
+                        onClick={() => fetchReport(report.campaign.id)}
+                        className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                        </svg>
+                        Refresh
+                      </button>
+                    </div>
                   </div>
 
                   {/* Summary Cards */}
