@@ -13,6 +13,9 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
 
@@ -90,18 +93,48 @@ export default function Dashboard() {
   }
 
   async function handleSend() {
-    if (!input.trim() || !selectedId || sending) return;
+    if ((!input.trim() && !mediaFile) || !selectedId || sending) return;
     setSending(true);
-    const res = await fetch(`/api/conversations/${selectedId}/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: input.trim() }),
-    });
-    if (res.ok) {
-      await fetchMessages(selectedId);
+
+    if (mediaFile) {
+      const formData = new FormData();
+      formData.append("file", mediaFile);
+      if (input.trim()) formData.append("caption", input.trim());
+      const res = await fetch(`/api/conversations/${selectedId}/send-media`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) await fetchMessages(selectedId);
+      clearMedia();
+    } else {
+      const res = await fetch(`/api/conversations/${selectedId}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: input.trim() }),
+      });
+      if (res.ok) await fetchMessages(selectedId);
     }
+
     setInput("");
     setSending(false);
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMediaFile(file);
+    if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
+      setMediaPreview(URL.createObjectURL(file));
+    } else {
+      setMediaPreview(null);
+    }
+  }
+
+  function clearMedia() {
+    setMediaFile(null);
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function formatTime(dateStr: string) {
@@ -317,7 +350,25 @@ export default function Dashboard() {
                             : "bg-emerald-600 text-white rounded-tr-sm"
                         }`}
                       >
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        {msg.media_url && msg.media_type === "image" && (
+                          <img src={msg.media_url} alt="" className="rounded-lg max-w-[240px] mb-1.5 cursor-pointer" onClick={() => window.open(msg.media_url!, "_blank")} />
+                        )}
+                        {msg.media_url && msg.media_type === "video" && (
+                          <video src={msg.media_url} controls className="rounded-lg max-w-[240px] mb-1.5" />
+                        )}
+                        {msg.media_url && msg.media_type === "audio" && (
+                          <audio src={msg.media_url} controls className="mb-1.5 max-w-[240px]" />
+                        )}
+                        {msg.media_url && msg.media_type === "document" && (
+                          <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 transition-colors mb-1.5">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <span className="text-xs truncate">Download file</span>
+                          </a>
+                        )}
+                        {msg.content && msg.content !== `[${msg.media_type}]` && (
+                          <p className="whitespace-pre-wrap">{msg.content}</p>
+                        )}
+                        {!msg.media_url && <p className="whitespace-pre-wrap">{msg.content}</p>}
                       </div>
                       {showTime && (
                         <p className="text-[10px] text-white/25 mt-1.5 px-1">
@@ -334,18 +385,56 @@ export default function Dashboard() {
 
             {/* Input Bar */}
             <div className="px-3 md:px-6 py-3 md:py-4 border-t border-white/[0.06]" style={{ background: "#141414" }}>
+              {/* Media preview */}
+              {mediaFile && (
+                <div className="flex items-center gap-3 mb-2 px-3 md:px-4 py-2 bg-white/[0.04] rounded-lg border border-white/[0.06]">
+                  {mediaPreview && mediaFile.type.startsWith("image/") ? (
+                    <img src={mediaPreview} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                  ) : mediaPreview && mediaFile.type.startsWith("video/") ? (
+                    <video src={mediaPreview} className="w-12 h-12 rounded-lg object-cover" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-white/[0.06] flex items-center justify-center">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-white/70 truncate">{mediaFile.name}</p>
+                    <p className="text-[10px] text-white/30">{(mediaFile.size / 1024).toFixed(0)} KB</p>
+                  </div>
+                  <button onClick={clearMedia} className="w-7 h-7 rounded-full hover:bg-white/[0.06] flex items-center justify-center flex-shrink-0 transition-colors" aria-label="Remove attachment">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              )}
               <div className="flex items-center gap-3 bg-white/[0.06] rounded-xl px-3 md:px-4 py-2.5 border border-white/[0.06] focus-within:border-emerald-500/40 transition-colors">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/mp4,video/3gpp,audio/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center flex-shrink-0 transition-colors"
+                  aria-label="Attach file"
+                  title="Attach image, video, audio, or document"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                  placeholder="Type a message..."
+                  placeholder={mediaFile ? "Add a caption..." : "Type a message..."}
                   className="flex-1 bg-transparent text-sm text-white/90 placeholder:text-white/25 focus:outline-none"
                 />
                 <button
                   onClick={handleSend}
-                  disabled={sending || !input.trim()}
+                  disabled={sending || (!input.trim() && !mediaFile)}
                   className="w-8 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150 flex items-center justify-center flex-shrink-0"
                   aria-label="Send"
                 >

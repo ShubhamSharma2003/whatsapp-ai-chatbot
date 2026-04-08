@@ -108,3 +108,8 @@ alter table messages
   add column if not exists campaign_id uuid references campaigns(id) on delete set null;
 
 create index if not exists idx_messages_campaign on messages(campaign_id);
+
+-- Media support for chat messages
+alter table messages
+  add column if not exists media_url text,
+  add column if not exists media_type text;

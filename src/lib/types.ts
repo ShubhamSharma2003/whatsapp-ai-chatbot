@@ -13,6 +13,8 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   whatsapp_msg_id: string | null;
+  media_url: string | null;
+  media_type: string | null;
   created_at: string;
 }
 
