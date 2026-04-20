@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const BATCH_SIZE = 25;
+const BATCH_SIZE = 10;
 const META_VERSION = "v22.0";
 
 type CampaignCache = {
