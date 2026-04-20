@@ -39,7 +39,21 @@ export async function getAIResponse(
     ],
   });
 
-  return completion.choices[0]?.message?.content || "Sorry, I couldn't generate a response.";
+  const raw = completion.choices[0]?.message?.content || "Sorry, I couldn't generate a response.";
+  return stripMarkdown(raw);
+}
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, "$1")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "• ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export async function isAutoReplyEnabled(): Promise<boolean> {

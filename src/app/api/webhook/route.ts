@@ -52,10 +52,11 @@ export async function POST(request: NextRequest) {
           .select("campaign_id")
           .single();
         if (recipient) {
-          const { data: camp } = await supabase.from("campaigns").select("delivered_count").eq("id", recipient.campaign_id).single();
-          if (camp) {
-            await supabase.from("campaigns").update({ delivered_count: (camp.delivered_count || 0) + 1 }).eq("id", recipient.campaign_id);
-          }
+          await supabase.rpc("increment_campaign_counter", {
+            p_campaign_id: recipient.campaign_id,
+            p_column: "delivered_count",
+            p_delta: 1,
+          });
         }
       } else if (statusName === "read") {
         const { data: recipient } = await supabase
@@ -66,18 +67,22 @@ export async function POST(request: NextRequest) {
           .select("campaign_id, delivered_at")
           .single();
         if (recipient) {
-          // If it jumped from sent → read (skipped delivered), count both
           if (!recipient.delivered_at) {
-            await supabase.from("campaign_recipients").update({ delivered_at: new Date().toISOString() }).eq("whatsapp_msg_id", msgId);
-            const { data: camp } = await supabase.from("campaigns").select("delivered_count").eq("id", recipient.campaign_id).single();
-            if (camp) {
-              await supabase.from("campaigns").update({ delivered_count: (camp.delivered_count || 0) + 1 }).eq("id", recipient.campaign_id);
-            }
+            await supabase
+              .from("campaign_recipients")
+              .update({ delivered_at: new Date().toISOString() })
+              .eq("whatsapp_msg_id", msgId);
+            await supabase.rpc("increment_campaign_counter", {
+              p_campaign_id: recipient.campaign_id,
+              p_column: "delivered_count",
+              p_delta: 1,
+            });
           }
-          const { data: camp } = await supabase.from("campaigns").select("read_count").eq("id", recipient.campaign_id).single();
-          if (camp) {
-            await supabase.from("campaigns").update({ read_count: (camp.read_count || 0) + 1 }).eq("id", recipient.campaign_id);
-          }
+          await supabase.rpc("increment_campaign_counter", {
+            p_campaign_id: recipient.campaign_id,
+            p_column: "read_count",
+            p_delta: 1,
+          });
         }
       }
     }
@@ -191,11 +196,11 @@ export async function POST(request: NextRequest) {
             .from("campaign_recipients")
             .update({ replied_at: new Date().toISOString() })
             .eq("whatsapp_msg_id", contextMsgId);
-          // Increment replied_count on campaign
-          const { data: camp } = await supabase.from("campaigns").select("replied_count").eq("id", recipient.campaign_id).single();
-          if (camp) {
-            await supabase.from("campaigns").update({ replied_count: (camp.replied_count || 0) + 1 }).eq("id", recipient.campaign_id);
-          }
+          await supabase.rpc("increment_campaign_counter", {
+            p_campaign_id: recipient.campaign_id,
+            p_column: "replied_count",
+            p_delta: 1,
+          });
         }
       }
     }

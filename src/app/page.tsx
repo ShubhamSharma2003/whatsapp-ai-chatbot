@@ -18,8 +18,19 @@ export default function Dashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const selected = conversations.find((c) => c.id === selectedId);
+
+  const filteredConversations = conversations.filter((c) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (c.name?.toLowerCase().includes(q) ?? false) ||
+      c.phone.toLowerCase().includes(q) ||
+      (c.last_message?.toLowerCase().includes(q) ?? false)
+    );
+  });
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then(setAppUser).catch(() => {});
@@ -100,19 +111,17 @@ export default function Dashboard() {
       const formData = new FormData();
       formData.append("file", mediaFile);
       if (input.trim()) formData.append("caption", input.trim());
-      const res = await fetch(`/api/conversations/${selectedId}/send-media`, {
+      await fetch(`/api/conversations/${selectedId}/send-media`, {
         method: "POST",
         body: formData,
       });
-      if (res.ok) await fetchMessages(selectedId);
       clearMedia();
     } else {
-      const res = await fetch(`/api/conversations/${selectedId}/send`, {
+      await fetch(`/api/conversations/${selectedId}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: input.trim() }),
       });
-      if (res.ok) await fetchMessages(selectedId);
     }
 
     setInput("");
@@ -207,7 +216,14 @@ export default function Dashboard() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696a0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <span className="text-[13px]" style={{ color: "#8696a0" }}>Search or start new chat</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search or start new chat"
+              className="flex-1 bg-transparent border-0 outline-none text-[13px]"
+              style={{ color: "#d1d7db" }}
+            />
           </div>
         </div>
 
@@ -223,7 +239,7 @@ export default function Dashboard() {
               <p className="text-xs text-white/30">No conversations yet</p>
             </div>
           )}
-          {conversations.map((convo) => {
+          {filteredConversations.map((convo) => {
             const isSelected = selectedId === convo.id;
             return (
               <button

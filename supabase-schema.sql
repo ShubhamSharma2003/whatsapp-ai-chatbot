@@ -113,3 +113,83 @@ create index if not exists idx_messages_campaign on messages(campaign_id);
 alter table messages
   add column if not exists media_url text,
   add column if not exists media_type text;
+
+-- ============================================================
+-- Queued broadcast worker (split dispatch from sending)
+-- ============================================================
+
+-- Persist template config so worker can render per-recipient
+alter table campaigns
+  add column if not exists template_params jsonb,
+  add column if not exists header_image_url text,
+  add column if not exists template_body text;
+
+-- Track last send attempt for retry/stale detection
+alter table campaign_recipients
+  add column if not exists attempt_count int not null default 0,
+  add column if not exists last_attempt_at timestamp with time zone;
+
+-- Extend status enum to include transient 'sending' (claimed by worker)
+alter table campaign_recipients
+  drop constraint if exists campaign_recipients_status_check;
+alter table campaign_recipients
+  add constraint campaign_recipients_status_check
+  check (status in ('pending', 'sending', 'sent', 'delivered', 'read', 'failed'));
+
+create index if not exists idx_campaign_recipients_pending
+  on campaign_recipients(status, campaign_id)
+  where status = 'pending';
+
+-- Atomic claim: mark N pending rows as 'sending' and return them.
+-- Uses FOR UPDATE SKIP LOCKED so concurrent workers can't grab the same row.
+create or replace function claim_pending_recipients(p_limit int)
+returns table(id uuid, campaign_id uuid, phone text)
+language plpgsql as $$
+begin
+  return query
+  with claimed as (
+    select r.id
+    from campaign_recipients r
+    where r.status = 'pending'
+    order by r.created_at
+    limit p_limit
+    for update skip locked
+  )
+  update campaign_recipients r
+     set status = 'sending',
+         attempt_count = coalesce(r.attempt_count, 0) + 1,
+         last_attempt_at = now()
+    from claimed
+   where r.id = claimed.id
+  returning r.id, r.campaign_id, r.phone;
+end;
+$$;
+
+-- Recover rows stuck in 'sending' longer than N seconds (crashed worker)
+create or replace function reclaim_stuck_sending(p_older_than_seconds int default 120)
+returns int language plpgsql as $$
+declare
+  n int;
+begin
+  update campaign_recipients
+     set status = 'pending'
+   where status = 'sending'
+     and last_attempt_at < now() - make_interval(secs => p_older_than_seconds);
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+-- Atomic counter increments (avoid lost-update races from webhooks)
+create or replace function increment_campaign_counter(
+  p_campaign_id uuid,
+  p_column text,
+  p_delta int default 1
+) returns void language plpgsql as $$
+begin
+  execute format(
+    'update campaigns set %I = coalesce(%I, 0) + $1 where id = $2',
+    p_column, p_column
+  ) using p_delta, p_campaign_id;
+end;
+$$;
