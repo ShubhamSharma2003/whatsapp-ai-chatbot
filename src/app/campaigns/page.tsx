@@ -97,6 +97,7 @@ export default function CampaignsPage() {
   const [headerImagePreview, setHeaderImagePreview] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
   const headerImageRef = useRef<HTMLInputElement>(null);
+  const [campaignSystemPrompt, setCampaignSystemPrompt] = useState("");
   const [manualNumbers, setManualNumbers] = useState("");
   const [csvPhones, setCsvPhones] = useState<string[]>([]);
   const [csvFileName, setCsvFileName] = useState("");
@@ -280,6 +281,7 @@ export default function CampaignsPage() {
         headerImageUrl: headerImageUrl || undefined,
         templateBody: selectedTemplate.components?.find((c) => c.type === "BODY")?.text || "",
         templateButtons: getButtons(selectedTemplate),
+        systemPrompt: campaignSystemPrompt || undefined,
       }),
     });
     const data = await res.json();
@@ -294,6 +296,7 @@ export default function CampaignsPage() {
       setManualNumbers("");
       setCsvPhones([]);
       setCsvFileName("");
+      setCampaignSystemPrompt("");
     }
   }
 
@@ -602,6 +605,23 @@ export default function CampaignsPage() {
                         for the recipient numbers.
                       </p>
                     </div>
+                  </div>
+
+                  {/* Campaign Knowledge Base */}
+                  <div>
+                    <label className="text-xs font-medium text-white/50 uppercase tracking-wider block mb-1">
+                      Campaign Knowledge Base
+                    </label>
+                    <p className="text-[10px] text-white/30 mb-2">
+                      AI will use this as its system prompt when replying to people who receive this campaign. Leave blank to use the global settings prompt.
+                    </p>
+                    <textarea
+                      value={campaignSystemPrompt}
+                      onChange={(e) => setCampaignSystemPrompt(e.target.value)}
+                      placeholder={`You are Pallavi, a senior investment consultant at Unisel Realty.\n\nThis campaign is about DLF Central 67 — premium SCO plots in Sector 67, Gurugram starting at ₹7.25 Cr. Key highlights:\n- High ROI commercial investment\n- Ready possession\n- Prime location near NH-48\n\nYour goal: answer questions about this project, handle objections, and book a site visit call. If the user is not interested, suggest other projects from our portfolio.`}
+                      rows={8}
+                      className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/15 focus:outline-none focus:border-emerald-500/40 transition-colors resize-none font-mono text-xs leading-relaxed"
+                    />
                   </div>
 
                   {/* Result */}

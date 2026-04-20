@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
     headerImageUrl,
     templateBody,
     templateButtons,
+    systemPrompt,
   } = await request.json();
 
   if (!name || !templateName || !phones?.length) {
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
       template_params: templateParams || null,
       header_image_url: headerImageUrl || null,
       template_body: templateBody || null,
+      system_prompt: systemPrompt?.trim() || null,
     })
     .select()
     .single();

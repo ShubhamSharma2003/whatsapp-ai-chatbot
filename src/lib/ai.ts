@@ -2,9 +2,11 @@ import OpenAI from "openai";
 import { PROPERTY_SYSTEM_PROMPT } from "@/lib/system-prompt";
 import { supabase } from "@/lib/supabase";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let _openai: OpenAI | null = null;
+function getOpenAI() {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
+}
 
 async function getSettings() {
   const { data } = await supabase
@@ -15,14 +17,22 @@ async function getSettings() {
   return data;
 }
 
+export function resolveSystemPrompt(
+  campaignPrompt: string | null | undefined,
+  globalPrompt: string | null | undefined
+): string {
+  if (campaignPrompt?.trim()) return campaignPrompt.trim();
+  if (globalPrompt?.trim()) return globalPrompt.trim();
+  return PROPERTY_SYSTEM_PROMPT;
+}
+
 export async function getAIResponse(
-  messages: { role: "user" | "assistant"; content: string }[]
+  messages: { role: "user" | "assistant"; content: string }[],
+  campaignSystemPrompt?: string | null
 ) {
   const settings = await getSettings();
 
-  const systemPrompt = settings?.system_prompt?.trim()
-    ? settings.system_prompt
-    : PROPERTY_SYSTEM_PROMPT;
+  const systemPrompt = resolveSystemPrompt(campaignSystemPrompt, settings?.system_prompt);
 
   const model = settings?.ai_model || process.env.AI_MODEL || "gpt-4o-mini";
   const temperature = settings?.temperature ?? 0.7;
@@ -30,7 +40,7 @@ export async function getAIResponse(
 
   const trimmedMessages = messages.slice(-maxContext);
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAI().chat.completions.create({
     model,
     temperature,
     messages: [

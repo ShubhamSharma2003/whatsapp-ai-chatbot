@@ -202,6 +202,16 @@ export async function POST(request: NextRequest) {
             p_delta: 1,
           });
         }
+
+        // Pin this campaign to the conversation so all follow-up messages
+        // use the same campaign knowledge base (even without quoting the original)
+        if (conversation.active_campaign_id !== recipient.campaign_id) {
+          await supabase
+            .from("conversations")
+            .update({ active_campaign_id: recipient.campaign_id })
+            .eq("id", conversation.id);
+          conversation.active_campaign_id = recipient.campaign_id;
+        }
       }
     }
 
@@ -262,12 +272,25 @@ export async function POST(request: NextRequest) {
       .limit(20);
     const history = (historyDesc || []).reverse();
 
+    // Fetch campaign-specific knowledge base if conversation is linked to a campaign
+    let campaignSystemPrompt: string | null = null;
+    const activeCampaignId = conversation.active_campaign_id || repliedToCampaignId;
+    if (activeCampaignId) {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("system_prompt")
+        .eq("id", activeCampaignId)
+        .single();
+      campaignSystemPrompt = campaign?.system_prompt || null;
+    }
+
     // Get AI response
     const aiResponse = await getAIResponse(
       (history || []).map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
-      }))
+      })),
+      campaignSystemPrompt
     );
 
     // Send response via WhatsApp
