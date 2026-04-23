@@ -193,3 +193,21 @@ begin
   ) using p_delta, p_campaign_id;
 end;
 $$;
+
+-- IQ Setter leads
+CREATE TABLE IF NOT EXISTS leads (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone           TEXT NOT NULL,
+  name            TEXT NOT NULL,
+  lead_source     TEXT NOT NULL,
+  lead_type       TEXT NOT NULL,
+  conversation_id UUID REFERENCES conversations(id),
+  template_sent   TEXT,
+  status          TEXT NOT NULL DEFAULT 'received',
+  error           TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_leads_phone ON leads(phone);
+CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at DESC);
