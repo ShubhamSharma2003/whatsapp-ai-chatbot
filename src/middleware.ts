@@ -9,6 +9,7 @@ const FEATURE_ROUTES: Record<string, string> = {
   "/campaigns": "campaigns",
   "/settings": "settings",
   "/admin": "admin",
+  "/ai-calling": "ai_calling",
 };
 
 export async function middleware(request: NextRequest) {
