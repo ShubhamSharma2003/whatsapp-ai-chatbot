@@ -79,6 +79,7 @@ export default function AiCallingCampaignsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action }),
     });
+    await loadCampaigns();
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {

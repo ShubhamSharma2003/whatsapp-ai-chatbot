@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('ai_call_recipients')
-    .select('*, ai_call_transcripts(recording_url, summary, cost_total, cost_breakdown)')
+    .select('*, ai_call_transcripts(recording_url, summary, success_evaluation, cost_total, cost_breakdown, messages)')
     .order('created_at', { ascending: false });
 
   if (campaign_id) query = query.eq('campaign_id', campaign_id);

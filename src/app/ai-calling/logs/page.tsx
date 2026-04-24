@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import type { AiCallRecipient, AiCallTranscript, AiCallCampaign, AiCallRecipientStatus } from '@/lib/types';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
@@ -52,6 +52,9 @@ export default function AiCallingLogsPage() {
     setLoading(false);
   }, [filterCampaign, filterStatus, filterSearch]);
 
+  const loadDataRef = useRef(loadData);
+  useEffect(() => { loadDataRef.current = loadData; }, [loadData]);
+
   useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
@@ -59,11 +62,11 @@ export default function AiCallingLogsPage() {
     const channel = sb
       .channel('ai_call_recipients_logs')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_call_recipients' }, () => {
-        loadData();
+        loadDataRef.current();
       })
       .subscribe();
     return () => { sb.removeChannel(channel); };
-  }, [loadData]);
+  }, []);
 
   function exportCsv() {
     const headers = ['Name', 'Phone', 'Status', 'Duration', 'Started At', 'Ended Reason', 'Cost', 'Retries', 'Scheduled At'];
