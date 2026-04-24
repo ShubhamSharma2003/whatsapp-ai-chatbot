@@ -197,6 +197,7 @@ $$;
 -- IQ Setter leads
 CREATE TABLE IF NOT EXISTS leads (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id         TEXT NOT NULL,
   phone           TEXT NOT NULL,
   name            TEXT NOT NULL,
   lead_source     TEXT NOT NULL,

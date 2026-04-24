@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp";
 
-const REQUIRED_FIELDS = ["phone", "name", "lead_source", "lead_type"] as const;
+const REQUIRED_FIELDS = ["lead_id", "phone", "name", "lead_source", "lead_type"] as const;
 const PLACEHOLDER_TEMPLATE = "hello_world";
 const PLACEHOLDER_LANGUAGE = "en_US";
 
@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { phone, name, lead_source, lead_type } = body as {
+  const { lead_id, phone, name, lead_source, lead_type } = body as {
+    lead_id: string;
     phone: string;
     name: string;
     lead_source: string;
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
   // Insert lead record
   const { data: lead, error: leadError } = await supabase
     .from("leads")
-    .insert({ phone, name, lead_source, lead_type, status: "received" })
+    .insert({ lead_id, phone, name, lead_source, lead_type, status: "received" })
     .select()
     .single();
 
