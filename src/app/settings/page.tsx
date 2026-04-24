@@ -151,6 +151,20 @@ export default function SettingsPage() {
               {label}
             </Link>
           ))}
+          {(appUser?.role === 'superadmin' || appUser?.allowed_features?.includes('ai_calling')) && (
+            <Link
+              href="/ai-calling"
+              className="flex items-center gap-3 px-5 py-3 text-[14px] transition-colors"
+              style={{ color: '#8696a0' }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#202c33')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.29 6.29l.97-.97a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+              </svg>
+              AI Calling
+            </Link>
+          )}
           <div className="flex items-center gap-3 px-5 py-3 text-[14px]" style={{ color: "#e9edef", background: "#2a3942" }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />

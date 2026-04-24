@@ -175,6 +175,20 @@ export default function Dashboard() {
                 <path d="M22 2L11 13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
             </Link>
+            {(appUser?.role === 'superadmin' || appUser?.allowed_features?.includes('ai_calling')) && (
+              <Link
+                href="/ai-calling"
+                title="AI Calling"
+                className="flex items-center justify-center w-10 h-10 rounded-full transition-colors"
+                style={{ color: '#aebac1' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2a3942')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.29 6.29l.97-.97a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+                </svg>
+              </Link>
+            )}
             <Link href="/settings" className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors" title="Settings">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#aebac1" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3" />
