@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import type { AppUser } from "@/lib/types";
 
-type Tab = "ai" | "prompt" | "behavior";
+type Tab = "ai" | "prompt" | "behavior" | "calling";
 
 type Settings = {
   system_prompt: string;
@@ -29,6 +29,20 @@ export default function SettingsPage() {
   const [draft, setDraft] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [callSettings, setCallSettings] = useState<{
+    vapi_api_key: string;
+    vapi_phone_number_id: string;
+    default_assistant_id: string;
+    max_concurrent_calls: number;
+  } | null>(null);
+  const [callSettingsDraft, setCallSettingsDraft] = useState<{
+    vapi_api_key: string;
+    vapi_phone_number_id: string;
+    default_assistant_id: string;
+    max_concurrent_calls: number;
+  } | null>(null);
+  const [callSettingsSaving, setCallSettingsSaving] = useState(false);
+  const [callSettingsSaved, setCallSettingsSaved] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
 
@@ -46,6 +60,32 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchSettings();
   }, [fetchSettings]);
+
+  useEffect(() => {
+    fetch('/api/ai-calling/settings')
+      .then((r) => r.json())
+      .then((d) => {
+        setCallSettings(d);
+        setCallSettingsDraft(d);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleCallSettingsSave() {
+    if (!callSettingsDraft) return;
+    setCallSettingsSaving(true);
+    await fetch('/api/ai-calling/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(callSettingsDraft),
+    });
+    setCallSettingsSaving(false);
+    setCallSettingsSaved(true);
+    setCallSettings(callSettingsDraft);
+    setTimeout(() => setCallSettingsSaved(false), 2500);
+  }
+
+  const isCallSettingsDirty = JSON.stringify(callSettingsDraft) !== JSON.stringify(callSettings);
 
   async function handleSave() {
     if (!draft) return;
@@ -232,6 +272,17 @@ export default function SettingsPage() {
               <span className="hidden sm:inline">{t.label}</span>
             </button>
           ))}
+              <button
+                onClick={() => setTab('calling')}
+                className="px-4 py-3 text-[13px] font-medium transition-colors whitespace-nowrap"
+                style={{
+                  color: tab === 'calling' ? '#00a884' : '#8696a0',
+                  borderBottom: tab === 'calling' ? '2px solid #00a884' : '2px solid transparent',
+                  background: 'transparent',
+                }}
+              >
+                AI Calling
+              </button>
         </div>
 
         {/* Content */}
@@ -474,6 +525,87 @@ export default function SettingsPage() {
 );`}</pre>
                 </Section>
               </>
+            )}
+
+            {/* ── AI CALLING TAB ── */}
+            {tab === 'calling' && callSettingsDraft && (
+              <div className="flex flex-col gap-6 max-w-xl">
+                <div>
+                  <label className="block text-[13px] font-medium mb-1.5" style={{ color: '#e9edef' }}>
+                    VAPI API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={callSettingsDraft.vapi_api_key}
+                    onChange={(e) => setCallSettingsDraft((p) => p ? { ...p, vapi_api_key: e.target.value } : p)}
+                    className="w-full px-3 py-2 rounded text-[14px] outline-none"
+                    style={{ background: '#2a3942', color: '#e9edef', border: '1px solid #313d45' }}
+                    placeholder="vapi_…"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium mb-1.5" style={{ color: '#e9edef' }}>
+                    VAPI Phone Number ID
+                  </label>
+                  <input
+                    type="text"
+                    value={callSettingsDraft.vapi_phone_number_id}
+                    onChange={(e) => setCallSettingsDraft((p) => p ? { ...p, vapi_phone_number_id: e.target.value } : p)}
+                    className="w-full px-3 py-2 rounded text-[14px] outline-none"
+                    style={{ background: '#2a3942', color: '#e9edef', border: '1px solid #313d45' }}
+                    placeholder="pn_…"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium mb-1.5" style={{ color: '#e9edef' }}>
+                    Default Assistant ID
+                  </label>
+                  <input
+                    type="text"
+                    value={callSettingsDraft.default_assistant_id}
+                    onChange={(e) => setCallSettingsDraft((p) => p ? { ...p, default_assistant_id: e.target.value } : p)}
+                    className="w-full px-3 py-2 rounded text-[14px] outline-none"
+                    style={{ background: '#2a3942', color: '#e9edef', border: '1px solid #313d45' }}
+                    placeholder="asst_…"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium mb-1.5" style={{ color: '#e9edef' }}>
+                    Max Concurrent Calls: <span style={{ color: '#00a884' }}>{callSettingsDraft.max_concurrent_calls}</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={1}
+                    max={10}
+                    value={callSettingsDraft.max_concurrent_calls}
+                    onChange={(e) => setCallSettingsDraft((p) => p ? { ...p, max_concurrent_calls: Number(e.target.value) } : p)}
+                    className="w-full accent-[#00a884]"
+                  />
+                  <div className="flex justify-between text-[11px] mt-1" style={{ color: '#8696a0' }}>
+                    <span>1</span><span>10</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    onClick={handleCallSettingsSave}
+                    disabled={!isCallSettingsDirty || callSettingsSaving}
+                    className="px-5 py-2 rounded text-[13px] font-medium transition-colors"
+                    style={{
+                      background: isCallSettingsDirty ? '#00a884' : '#2a3942',
+                      color: isCallSettingsDirty ? 'white' : '#8696a0',
+                      cursor: isCallSettingsDirty ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    {callSettingsSaving ? 'Saving…' : 'Save'}
+                  </button>
+                  {callSettingsSaved && (
+                    <span className="text-[13px]" style={{ color: '#00a884' }}>Saved</span>
+                  )}
+                  {isCallSettingsDirty && !callSettingsSaving && (
+                    <span className="text-[13px]" style={{ color: '#8696a0' }}>Unsaved changes</span>
+                  )}
+                </div>
+              </div>
             )}
 
           </div>
