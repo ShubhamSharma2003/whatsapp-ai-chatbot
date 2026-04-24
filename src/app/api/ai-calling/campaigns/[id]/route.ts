@@ -13,7 +13,7 @@ export async function PATCH(
       .from('ai_call_recipients')
       .update({ status: 'failed', error: 'Campaign stopped by user' })
       .eq('campaign_id', id)
-      .eq('status', 'pending');
+      .in('status', ['pending', 'calling']);
   }
 
   const statusMap: Record<string, string> = {

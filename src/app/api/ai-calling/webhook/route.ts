@@ -66,10 +66,13 @@ export async function POST(request: NextRequest) {
         const durationSeconds = startedAt
           ? Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 1000)
           : null;
-        const isSuccess =
-          endedReason !== null &&
-          !endedReason.startsWith('error') &&
-          endedReason !== 'voicemail';
+        const ANSWERED_REASONS = new Set([
+          'customer-ended-call',
+          'assistant-ended-call',
+          'assistant-forwarded-call',
+          'customer-did-not-give-microphone-permission',
+        ]);
+        const isSuccess = endedReason !== null && ANSWERED_REASONS.has(endedReason);
 
         await supabase
           .from('ai_call_recipients')

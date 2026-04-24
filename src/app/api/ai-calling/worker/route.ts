@@ -61,11 +61,12 @@ export async function POST() {
         .update({ vapi_call_id: vapiCall.id })
         .eq('id', recipient.id);
 
-      await supabase.rpc('increment_ai_call_counter', {
+      const { error: counterError } = await supabase.rpc('increment_ai_call_counter', {
         p_campaign_id: recipient.campaign_id,
         p_column: 'called_count',
         p_delta: 1,
       });
+      if (counterError) console.error('increment called_count failed:', counterError.message);
 
       dispatched++;
     } catch (err) {
