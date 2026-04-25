@@ -84,6 +84,12 @@ export default function CampaignsPage() {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [report, setReport] = useState<CampaignReport | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+
+  const filteredRecipients = report?.recipients.filter((r) => {
+    if (statusFilter.length === 0) return true;
+    return statusFilter.includes(r.status);
+  }) ?? [];
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then(setAppUser).catch(() => {});
@@ -880,8 +886,39 @@ export default function CampaignsPage() {
 
                   {/* Recipients Table */}
                   <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl overflow-hidden">
-                    <div className="px-5 py-3 border-b border-white/[0.06]">
-                      <h4 className="text-xs font-medium text-white/50 uppercase tracking-wider">Recipients Detail</h4>
+                    <div className="px-5 py-3 border-b border-white/[0.06] flex flex-wrap items-center gap-2">
+                      <h4 className="text-xs font-medium text-white/50 uppercase tracking-wider mr-2">Recipients Detail</h4>
+                      {[
+                        { label: "All", value: "", color: "text-white/60 border-white/20 bg-white/5 data-[active=true]:bg-white/15 data-[active=true]:border-white/40 data-[active=true]:text-white" },
+                        { label: "Sent", value: "sent", color: "text-blue-400 border-blue-400/20 bg-blue-400/5 data-[active=true]:bg-blue-400/20 data-[active=true]:border-blue-400/50" },
+                        { label: "Delivered", value: "delivered", color: "text-emerald-400 border-emerald-400/20 bg-emerald-400/5 data-[active=true]:bg-emerald-400/20 data-[active=true]:border-emerald-400/50" },
+                        { label: "Read", value: "read", color: "text-purple-400 border-purple-400/20 bg-purple-400/5 data-[active=true]:bg-purple-400/20 data-[active=true]:border-purple-400/50" },
+                        { label: "Replied", value: "replied", color: "text-amber-400 border-amber-400/20 bg-amber-400/5 data-[active=true]:bg-amber-400/20 data-[active=true]:border-amber-400/50" },
+                        { label: "Failed", value: "failed", color: "text-red-400 border-red-400/20 bg-red-400/5 data-[active=true]:bg-red-400/20 data-[active=true]:border-red-400/50" },
+                      ].map((chip) => {
+                        const isAll = chip.value === "";
+                        const isActive = isAll ? statusFilter.length === 0 : statusFilter.includes(chip.value);
+                        return (
+                          <button
+                            key={chip.label}
+                            data-active={isActive}
+                            onClick={() => {
+                              if (isAll) {
+                                setStatusFilter([]);
+                              } else {
+                                setStatusFilter((prev) =>
+                                  prev.includes(chip.value)
+                                    ? prev.filter((s) => s !== chip.value)
+                                    : [...prev, chip.value]
+                                );
+                              }
+                            }}
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium border transition-all ${chip.color}`}
+                          >
+                            {chip.label}
+                          </button>
+                        );
+                      })}
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
