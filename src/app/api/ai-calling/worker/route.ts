@@ -10,8 +10,10 @@ export async function POST() {
     .single();
 
   if (!settings) {
+    console.error('worker: no settings found');
     return NextResponse.json({ error: 'Settings not configured' }, { status: 500 });
   }
+  console.log('worker: settings loaded', { phoneNumberId: settings.vapi_phone_number_id, assistantId: settings.default_assistant_id, maxConcurrent: settings.max_concurrent_calls });
 
   const { count: activeCount } = await supabase
     .from('ai_call_recipients')
@@ -31,8 +33,11 @@ export async function POST() {
     .rpc('claim_pending_call_recipients', { p_limit: slotsAvailable });
 
   if (claimError) {
+    console.error('worker: claim error', claimError.message);
     return NextResponse.json({ error: claimError.message }, { status: 500 });
   }
+
+  console.log('worker: claimed', claimed?.length ?? 0, 'recipients');
 
   if (!claimed || claimed.length === 0) {
     return NextResponse.json({ dispatched: 0, reason: 'no_pending' });
@@ -71,6 +76,7 @@ export async function POST() {
       dispatched++;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      console.error('VAPI call failed for', recipient.phone, ':', message);
       await supabase
         .from('ai_call_recipients')
         .update({ status: 'failed', error: message })

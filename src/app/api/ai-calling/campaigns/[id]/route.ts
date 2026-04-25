@@ -6,6 +6,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const origin = request.headers.get('origin') ?? request.nextUrl.origin;
   const { action } = await request.json() as { action: 'start' | 'pause' | 'resume' | 'stop' };
 
   if (action === 'stop') {
@@ -38,8 +39,7 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   if (action === 'start' || action === 'resume') {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-    fetch(`${baseUrl}/api/ai-calling/worker`, { method: 'POST' }).catch(() => {});
+    fetch(`${origin}/api/ai-calling/worker`, { method: 'POST' }).catch((e) => console.error('worker trigger failed:', e));
   }
 
   return NextResponse.json(data);

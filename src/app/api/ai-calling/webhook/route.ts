@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
   };
 
   const { message } = body;
+  console.log('webhook received:', message?.type, 'callId:', message?.call?.id, 'status:', message?.call?.status);
   if (!message?.type) return NextResponse.json({ received: true });
 
   const callId = message.call?.id;

@@ -29,7 +29,7 @@ function parseCsv(text: string): Array<{ phone: string; name: string }> {
   const lines = text.trim().split('\n');
   if (lines.length < 2) return [];
   const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-  const phoneIdx = headers.indexOf('phone');
+  const phoneIdx = headers.indexOf('phone') !== -1 ? headers.indexOf('phone') : headers.indexOf('number');
   const nameIdx = headers.indexOf('name');
   if (phoneIdx === -1) return [];
   return lines.slice(1).map((line) => {
@@ -90,7 +90,7 @@ export default function AiCallingCampaignsPage() {
       const text = ev.target?.result as string;
       const parsed = parseCsv(text);
       if (parsed.length === 0) {
-        setCsvError('CSV must have a "phone" column and at least one row');
+        setCsvError('CSV must have a "phone" or "number" column and at least one row');
         setRecipients([]);
       } else {
         setCsvError('');
@@ -256,7 +256,7 @@ export default function AiCallingCampaignsPage() {
             {step === 2 && (
               <>
                 <div>
-                  <label className="block text-[13px] mb-1.5" style={{ color: '#8696a0' }}>Upload CSV (columns: phone, name)</label>
+                  <label className="block text-[13px] mb-1.5" style={{ color: '#8696a0' }}>Upload CSV (columns: name, number)</label>
                   <div
                     className="flex flex-col items-center justify-center gap-2 rounded-lg py-8 cursor-pointer border-2 border-dashed"
                     style={{ borderColor: '#313d45' }}

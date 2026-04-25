@@ -7,7 +7,10 @@ export async function GET() {
     .select('*')
     .order('created_at', { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('campaigns GET error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json(data);
 }
 
@@ -43,15 +46,19 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (campaignError || !campaign) {
-    return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 });
+    return NextResponse.json({ error: campaignError?.message ?? 'Failed to create campaign' }, { status: 500 });
   }
 
-  const recipientRows = recipients.map((r) => ({
-    campaign_id: campaign.id,
-    phone: r.phone,
-    name: r.name,
-    status: 'pending',
-  }));
+  const recipientRows = recipients.map((r) => {
+    // Normalize to E.164: strip spaces/dashes, add +91 for 10-digit Indian numbers
+    let phone = r.phone.replace(/[\s\-().]/g, '');
+    if (!phone.startsWith('+')) {
+      if (phone.length === 10) phone = '+91' + phone;
+      else if (phone.startsWith('91') && phone.length === 12) phone = '+' + phone;
+      else phone = '+' + phone;
+    }
+    return { campaign_id: campaign.id, phone, name: r.name, status: 'pending' };
+  });
 
   const { error: insertError } = await supabase
     .from('ai_call_recipients')
