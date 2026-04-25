@@ -6,7 +6,9 @@ import Link from "next/link";
 import type { ConversationWithLastMessage, Message, AppUser } from "@/lib/types";
 
 export default function Dashboard() {
-  const supabase = createSupabaseBrowserClient();
+  const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient> | null>(null);
+  if (!supabaseRef.current) supabaseRef.current = createSupabaseBrowserClient();
+  const supabase = supabaseRef.current;
 
   const [conversations, setConversations] = useState<ConversationWithLastMessage[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -112,7 +114,7 @@ export default function Dashboard() {
     return () => {
       supabase?.removeChannel(channel);
     };
-  }, [selectedId, fetchConversations, supabase]);
+  }, [selectedId, fetchConversations]);
 
   async function toggleMode() {
     if (!selected) return;
