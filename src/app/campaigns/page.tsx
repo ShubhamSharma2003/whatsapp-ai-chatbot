@@ -169,6 +169,7 @@ export default function CampaignsPage() {
   const fetchReport = useCallback(async (campaignId: string) => {
     setLoadingReport(true);
     setReport(null);
+    setStatusFilter([]);
     const res = await fetch(`/api/campaigns/${campaignId}/report`);
     const data = await res.json();
     if (data.campaign) setReport(data);
@@ -934,14 +935,15 @@ export default function CampaignsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredRecipients.map((r, i) => (
-                            <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                          {filteredRecipients.map((r) => (
+                            <tr key={r.phone} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                               <td className="px-4 py-2.5 text-white/70 font-mono">{r.phone}</td>
                               <td className="px-4 py-2.5">
                                 <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${
                                   r.status === "read" ? "bg-purple-500/15 text-purple-400" :
                                   r.status === "delivered" ? "bg-emerald-500/15 text-emerald-400" :
                                   r.status === "sent" ? "bg-blue-500/15 text-blue-400" :
+                                  r.status === "replied" ? "bg-amber-500/15 text-amber-400" :
                                   r.status === "failed" ? "bg-red-500/15 text-red-400" :
                                   "bg-white/10 text-white/40"
                                 }`}>
@@ -960,7 +962,7 @@ export default function CampaignsPage() {
                               <td className="px-4 py-2.5 text-red-400/70 hidden lg:table-cell max-w-[200px] truncate">{r.error || "—"}</td>
                               <td className="px-4 py-2.5">
                                 <Link
-                                  href={`/?phone=${r.phone}`}
+                                  href={`/?phone=${encodeURIComponent(r.phone)}`}
                                   className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-white/50 hover:text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all"
                                 >
                                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -971,6 +973,13 @@ export default function CampaignsPage() {
                               </td>
                             </tr>
                           ))}
+                          {filteredRecipients.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="px-4 py-8 text-center text-xs text-white/30">
+                                No recipients match the selected filter.
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>

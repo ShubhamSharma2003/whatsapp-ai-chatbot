@@ -19,6 +19,7 @@ export default function Dashboard() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const deepLinkPending = useRef(false);
 
   const selected = conversations.find((c) => c.id === selectedId);
 
@@ -56,12 +57,13 @@ export default function Dashboard() {
     const params = new URLSearchParams(window.location.search);
     const phone = params.get("phone");
     if (!phone) return;
-    setSearchQuery(phone);
+    deepLinkPending.current = true;
+    setSearchQuery(decodeURIComponent(phone));
     window.history.replaceState({}, "", window.location.pathname);
   }, []);
 
   useEffect(() => {
-    if (!searchQuery || conversations.length === 0) return;
+    if (!deepLinkPending.current || !searchQuery || conversations.length === 0) return;
     const q = searchQuery.trim().toLowerCase();
     const matches = conversations.filter(
       (c) =>
@@ -69,6 +71,7 @@ export default function Dashboard() {
         (c.name?.toLowerCase().includes(q) ?? false)
     );
     if (matches.length === 1) {
+      deepLinkPending.current = false;
       setSelectedId(matches[0].id);
     }
   }, [conversations, searchQuery]);
