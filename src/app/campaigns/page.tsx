@@ -930,10 +930,11 @@ export default function CampaignsPage() {
                             <th className="text-left px-4 py-2.5 text-white/40 font-medium hidden sm:table-cell">Read</th>
                             <th className="text-left px-4 py-2.5 text-white/40 font-medium hidden md:table-cell">Replied</th>
                             <th className="text-left px-4 py-2.5 text-white/40 font-medium hidden lg:table-cell">Error</th>
+                            <th className="text-left px-4 py-2.5 text-white/40 font-medium">Chat</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {report.recipients.map((r, i) => (
+                          {filteredRecipients.map((r, i) => (
                             <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                               <td className="px-4 py-2.5 text-white/70 font-mono">{r.phone}</td>
                               <td className="px-4 py-2.5">
@@ -957,6 +958,17 @@ export default function CampaignsPage() {
                                 )}
                               </td>
                               <td className="px-4 py-2.5 text-red-400/70 hidden lg:table-cell max-w-[200px] truncate">{r.error || "—"}</td>
+                              <td className="px-4 py-2.5">
+                                <Link
+                                  href={`/?phone=${r.phone}`}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-white/50 hover:text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all"
+                                >
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                  </svg>
+                                  Chat
+                                </Link>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
