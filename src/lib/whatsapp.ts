@@ -61,8 +61,31 @@ export async function sendWhatsAppMessage(to: string, body: string) {
 export async function sendWhatsAppTemplate(
   to: string,
   templateName: string,
-  languageCode: string
+  languageCode: string,
+  bodyParams?: string[],
+  headerImageUrl?: string
 ) {
+  const template: Record<string, unknown> = {
+    name: templateName,
+    language: { code: languageCode },
+  };
+  const components: unknown[] = [];
+  if (headerImageUrl) {
+    components.push({
+      type: "header",
+      parameters: [{ type: "image", image: { link: headerImageUrl } }],
+    });
+  }
+  if (bodyParams && bodyParams.length > 0) {
+    components.push({
+      type: "body",
+      parameters: bodyParams.map((text) => ({ type: "text", text })),
+    });
+  }
+  if (components.length > 0) {
+    template.components = components;
+  }
+
   const res = await fetch(
     `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
     {
@@ -75,10 +98,7 @@ export async function sendWhatsAppTemplate(
         messaging_product: "whatsapp",
         to,
         type: "template",
-        template: {
-          name: templateName,
-          language: { code: languageCode },
-        },
+        template,
       }),
     }
   );

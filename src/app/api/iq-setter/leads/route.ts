@@ -3,8 +3,23 @@ import { supabase } from "@/lib/supabase";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp";
 
 const REQUIRED_FIELDS = ["lead_id", "phone", "name", "lead_source", "lead_type"] as const;
-const PLACEHOLDER_TEMPLATE = "hello_world";
-const PLACEHOLDER_LANGUAGE = "en_US";
+const TEMPLATE_NAME = "order_tracking_link_bi";
+const TEMPLATE_LANGUAGE = "en";
+const TEMPLATE_HEADER_IMAGE_URL =
+  "https://wlaimpmijyogcuhacqnv.supabase.co/storage/v1/object/public/campaign-images/campaign-headers/1777179532533.png";
+// Flattened: Meta rejects newlines and 4+ consecutive spaces in body variables (error 132018)
+const TEMPLATE_BODY_TEXT =
+  "To help you better, may I understand your requirement so our 20+ years of real estate experience can serve you in the best way: 1) Investment or self-use, 2) Your preferred budget, 3) Suitable time for a call or meeting. This will help us suggest the most suitable options for you 😊";
+
+// Fallback to "sir" when name is missing, blank, or has no letter characters
+// (covers mojibake like "????? ???" from upstream encoding issues)
+function sanitizeName(raw: string | null | undefined): string {
+  if (!raw) return "sir";
+  const trimmed = raw.replace(/\s+/g, " ").trim();
+  if (!trimmed) return "sir";
+  if (!/\p{L}/u.test(trimmed)) return "sir";
+  return trimmed;
+}
 
 export async function POST(request: NextRequest) {
   // Auth
@@ -108,10 +123,16 @@ export async function POST(request: NextRequest) {
 
   // Send WhatsApp template
   try {
-    await sendWhatsAppTemplate(phone, PLACEHOLDER_TEMPLATE, PLACEHOLDER_LANGUAGE);
+    await sendWhatsAppTemplate(
+      phone,
+      TEMPLATE_NAME,
+      TEMPLATE_LANGUAGE,
+      [sanitizeName(name), TEMPLATE_BODY_TEXT],
+      TEMPLATE_HEADER_IMAGE_URL
+    );
     await supabase
       .from("leads")
-      .update({ status: "template_sent", template_sent: PLACEHOLDER_TEMPLATE })
+      .update({ status: "template_sent", template_sent: TEMPLATE_NAME })
       .eq("id", lead.id);
   } catch (err) {
     console.error("Failed to send WhatsApp template:", err);
