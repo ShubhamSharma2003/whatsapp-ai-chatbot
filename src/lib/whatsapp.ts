@@ -84,7 +84,9 @@ export async function sendWhatsAppTemplate(
   );
   const data = await res.json();
   if (!res.ok || data.error) {
-    console.error("WhatsApp Template API error:", JSON.stringify(data));
+    const errMsg = JSON.stringify(data);
+    console.error("WhatsApp Template API error:", errMsg);
+    throw new Error(`WhatsApp Template API error: ${errMsg}`);
   }
   return data;
 }

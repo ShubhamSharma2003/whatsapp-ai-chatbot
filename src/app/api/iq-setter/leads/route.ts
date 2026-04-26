@@ -32,6 +32,22 @@ export async function POST(request: NextRequest) {
     lead_type: string;
   };
 
+  // Idempotency: same lead_id arriving twice (IQ Setter retry) returns prior result
+  const { data: existingLead } = await supabase
+    .from("leads")
+    .select("id, status")
+    .eq("lead_id", lead_id)
+    .maybeSingle();
+
+  if (existingLead) {
+    return Response.json({
+      success: true,
+      message: "Lead already received",
+      duplicate: true,
+      status: existingLead.status,
+    });
+  }
+
   // Insert lead record
   const { data: lead, error: leadError } = await supabase
     .from("leads")
@@ -47,14 +63,21 @@ export async function POST(request: NextRequest) {
   // Find or create conversation
   const { data: existingConv } = await supabase
     .from("conversations")
-    .select()
+    .select("id, source_type")
     .eq("phone", phone)
-    .single();
+    .maybeSingle();
 
-  let conversationId: string;
+  let conversationId: string | undefined;
 
   if (existingConv) {
     conversationId = existingConv.id;
+    // Backfill IQ Setter origin if conversation had no source yet
+    if (!existingConv.source_type) {
+      await supabase
+        .from("conversations")
+        .update({ source_type: "iq_setter", source_lead_id: lead.id })
+        .eq("id", existingConv.id);
+    }
   } else {
     const { data: newConv, error: newConvError } = await supabase
       .from("conversations")
@@ -96,6 +119,14 @@ export async function POST(request: NextRequest) {
       .from("leads")
       .update({ status: "failed", error: String(err) })
       .eq("id", lead.id);
+    return Response.json(
+      {
+        success: false,
+        message: "Lead saved but WhatsApp template failed",
+        error: String(err),
+      },
+      { status: 502 }
+    );
   }
 
   return Response.json({ success: true, message: "Lead received" });
