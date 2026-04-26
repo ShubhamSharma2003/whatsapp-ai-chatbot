@@ -26,7 +26,14 @@ export async function POST(
   }
 
   // Send via WhatsApp
-  await sendWhatsAppMessage(conversation.phone, message);
+  let whatsappMsgId: string | null = null;
+  try {
+    const waRes = await sendWhatsAppMessage(conversation.phone, message);
+    whatsappMsgId = waRes?.messages?.[0]?.id ?? null;
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return Response.json({ error: errMsg }, { status: 502 });
+  }
 
   // Store in DB
   const { data: msg, error: msgError } = await supabase
@@ -35,6 +42,7 @@ export async function POST(
       conversation_id: id,
       role: "assistant",
       content: message,
+      whatsapp_msg_id: whatsappMsgId,
     })
     .select()
     .single();

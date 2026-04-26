@@ -1,3 +1,13 @@
+export type ConversationSourceType = "campaign" | "iq_setter" | "direct";
+
+export interface ConversationSource {
+  type: ConversationSourceType;
+  label: string;
+  secondary: string | null;
+  template: string | null;
+  received_at: string;
+}
+
 export interface Conversation {
   id: string;
   phone: string;
@@ -5,6 +15,9 @@ export interface Conversation {
   mode: "agent" | "human";
   updated_at: string;
   created_at: string;
+  source_type: ConversationSourceType | null;
+  source_lead_id: string | null;
+  source_campaign_id: string | null;
 }
 
 export interface Message {
@@ -20,6 +33,7 @@ export interface Message {
 
 export interface ConversationWithLastMessage extends Conversation {
   last_message: string | null;
+  source: ConversationSource;
 }
 
 export type Feature = "dashboard" | "campaigns" | "settings" | "admin" | "ai_calling";

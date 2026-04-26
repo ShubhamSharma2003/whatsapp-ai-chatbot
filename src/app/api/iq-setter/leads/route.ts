@@ -58,7 +58,15 @@ export async function POST(request: NextRequest) {
   } else {
     const { data: newConv, error: newConvError } = await supabase
       .from("conversations")
-      .upsert({ phone, name }, { onConflict: "phone" })
+      .upsert(
+        {
+          phone,
+          name,
+          source_type: "iq_setter",
+          source_lead_id: lead.id,
+        },
+        { onConflict: "phone" }
+      )
       .select()
       .single();
     if (newConvError) {

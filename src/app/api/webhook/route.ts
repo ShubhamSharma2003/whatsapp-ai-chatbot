@@ -138,6 +138,23 @@ export async function POST(request: NextRequest) {
     console.log("📱 Processing message from:", phone);
     console.log("📝 Message text:", text);
 
+    // ─── Look up context recipient FIRST so a new conversation can be
+    //     tagged with its source origin at insert time ───
+    let repliedToCampaignId: string | null = null;
+    let contextRecipient: { campaign_id: string; replied_at: string | null } | null = null;
+    const contextMsgId = message.context?.id;
+    if (contextMsgId) {
+      const { data: recipient } = await supabase
+        .from("campaign_recipients")
+        .select("campaign_id, replied_at")
+        .eq("whatsapp_msg_id", contextMsgId)
+        .single();
+      if (recipient) {
+        contextRecipient = recipient;
+        repliedToCampaignId = recipient.campaign_id;
+      }
+    }
+
     // Find or create conversation
     let { data: conversation, error: convoError } = await supabase
       .from("conversations")
@@ -151,9 +168,15 @@ export async function POST(request: NextRequest) {
 
     if (!conversation) {
       console.log("🆕 Creating new conversation for:", phone);
+      const sourceType = repliedToCampaignId ? "campaign" : "direct";
       const { data: newConvo, error: insertConvoError } = await supabase
         .from("conversations")
-        .insert({ phone, name })
+        .insert({
+          phone,
+          name,
+          source_type: sourceType,
+          source_campaign_id: repliedToCampaignId,
+        })
         .select()
         .single();
       if (insertConvoError) {
@@ -175,43 +198,29 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Failed to create conversation" }, { status: 500 });
     }
 
-    // ─── Track campaign reply if this is a reply to a broadcast message ───
-    let repliedToCampaignId: string | null = null;
+    // ─── Track campaign reply (counters + active campaign pinning) ───
+    if (contextRecipient && repliedToCampaignId) {
+      // Mark first reply only
+      if (!contextRecipient.replied_at) {
+        await supabase
+          .from("campaign_recipients")
+          .update({ replied_at: new Date().toISOString() })
+          .eq("whatsapp_msg_id", contextMsgId);
+        await supabase.rpc("increment_campaign_counter", {
+          p_campaign_id: repliedToCampaignId,
+          p_column: "replied_count",
+          p_delta: 1,
+        });
+      }
 
-    // Check if the context references a campaign message
-    const contextMsgId = message.context?.id;
-    if (contextMsgId) {
-      // Look up the campaign recipient by the original broadcast message id
-      const { data: recipient } = await supabase
-        .from("campaign_recipients")
-        .select("campaign_id, replied_at")
-        .eq("whatsapp_msg_id", contextMsgId)
-        .single();
-
-      if (recipient) {
-        repliedToCampaignId = recipient.campaign_id;
-        // Mark first reply only
-        if (!recipient.replied_at) {
-          await supabase
-            .from("campaign_recipients")
-            .update({ replied_at: new Date().toISOString() })
-            .eq("whatsapp_msg_id", contextMsgId);
-          await supabase.rpc("increment_campaign_counter", {
-            p_campaign_id: recipient.campaign_id,
-            p_column: "replied_count",
-            p_delta: 1,
-          });
-        }
-
-        // Pin this campaign to the conversation so all follow-up messages
-        // use the same campaign knowledge base (even without quoting the original)
-        if (conversation.active_campaign_id !== recipient.campaign_id) {
-          await supabase
-            .from("conversations")
-            .update({ active_campaign_id: recipient.campaign_id })
-            .eq("id", conversation.id);
-          conversation.active_campaign_id = recipient.campaign_id;
-        }
+      // Pin this campaign to the conversation so all follow-up messages
+      // use the same campaign knowledge base (even without quoting the original)
+      if (conversation.active_campaign_id !== repliedToCampaignId) {
+        await supabase
+          .from("conversations")
+          .update({ active_campaign_id: repliedToCampaignId })
+          .eq("id", conversation.id);
+        conversation.active_campaign_id = repliedToCampaignId;
       }
     }
 
