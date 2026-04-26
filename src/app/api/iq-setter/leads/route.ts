@@ -78,9 +78,25 @@ export async function POST(request: NextRequest) {
   // Find or create conversation
   const { data: existingConv } = await supabase
     .from("conversations")
-    .select("id, source_type")
+    .select("id, source_type, opted_out")
     .eq("phone", phone)
     .maybeSingle();
+
+  // Honor prior opt-out: never re-send templates to unsubscribed users
+  if (existingConv?.opted_out) {
+    await supabase
+      .from("leads")
+      .update({
+        status: "opted_out_skipped",
+        conversation_id: existingConv.id,
+      })
+      .eq("id", lead.id);
+    return Response.json({
+      success: true,
+      message: "Lead saved but recipient previously opted out; template not sent",
+      opted_out: true,
+    });
+  }
 
   let conversationId: string | undefined;
 

@@ -3,6 +3,22 @@ import { supabase } from "@/lib/supabase";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getAIResponse, isAutoReplyEnabled } from "@/lib/ai";
 
+const OPT_OUT_KEYWORDS = new Set([
+  "stop",
+  "unsubscribe",
+  "cancel",
+  "end",
+  "quit",
+  "stop all",
+]);
+const OPT_OUT_CONFIRMATION =
+  "You've been unsubscribed and will no longer receive messages from us.";
+
+function isOptOutKeyword(raw: string): boolean {
+  const normalized = raw.trim().toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "");
+  return OPT_OUT_KEYWORDS.has(normalized);
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const mode = searchParams.get("hub.mode");
@@ -249,6 +265,39 @@ export async function POST(request: NextRequest) {
       .from("conversations")
       .update({ updated_at: new Date().toISOString() })
       .eq("id", conversation.id);
+
+    // ─── Opt-out handling ───
+    // If user already opted out: store message (already done above), stay silent.
+    if (conversation.opted_out) {
+      console.log("🚫 Opted-out user, no reply:", phone);
+      return Response.json({ status: "opted_out_silent" });
+    }
+
+    // Newly triggering opt-out keyword: flag, send single confirmation, stop.
+    if (!isButtonReply && isOptOutKeyword(text)) {
+      console.log("🚫 Opt-out keyword received from:", phone);
+      await supabase
+        .from("conversations")
+        .update({
+          opted_out: true,
+          opted_out_at: new Date().toISOString(),
+          mode: "human",
+        })
+        .eq("id", conversation.id);
+
+      try {
+        await sendWhatsAppMessage(phone, OPT_OUT_CONFIRMATION);
+        await supabase.from("messages").insert({
+          conversation_id: conversation.id,
+          role: "assistant",
+          content: OPT_OUT_CONFIRMATION,
+        });
+      } catch (err) {
+        console.error("Failed to send opt-out confirmation:", err);
+      }
+
+      return Response.json({ status: "opted_out" });
+    }
 
     // ─── Determine whether AI should auto-reply ───
     // Button replies from campaign templates ALWAYS trigger AI chat (switch to agent mode)
