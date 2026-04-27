@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import type { AppUser, Feature } from "@/lib/types";
+import SidebarNav, { MobileNavToggle } from "@/components/ui/SidebarNav";
+import { Orbit } from "@/components/ui/Loaders";
+import { Avatar as GradAvatar } from "@/components/ui/Avatar";
 
 const ALL_FEATURES: { value: Feature; label: string }[] = [
   { value: "dashboard", label: "Conversations" },
@@ -18,7 +20,6 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // New user form
   const [showForm, setShowForm] = useState(false);
   const [formEmail, setFormEmail] = useState("");
   const [formPassword, setFormPassword] = useState("");
@@ -27,7 +28,6 @@ export default function AdminUsersPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSaving, setFormSaving] = useState(false);
 
-  // Edit user
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFeatures, setEditFeatures] = useState<Feature[]>([]);
   const [editPhones, setEditPhones] = useState<string[]>([]);
@@ -115,14 +115,8 @@ export default function AdminUsersPage() {
 
   async function handleDelete(userId: string) {
     if (!confirm("Are you sure you want to delete this user?")) return;
-
-    const res = await fetch(`/api/admin/users/${userId}`, {
-      method: "DELETE",
-    });
-
-    if (res.ok) {
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
-    }
+    const res = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" });
+    if (res.ok) setUsers((prev) => prev.filter((u) => u.id !== userId));
   }
 
   function toggleFeature(
@@ -151,354 +145,370 @@ export default function AdminUsersPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center" style={{ background: "#0b141a" }}>
-        <svg className="animate-spin" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00a884" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-        </svg>
+      <div className="flex h-screen items-center justify-center bg-paper mesh-canvas">
+        <div className="flex flex-col items-center gap-4">
+          <Orbit size="lg" />
+          <p className="eyebrow text-[10px] text-muted">Loading members</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen" style={{ background: "#111b21" }}>
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
+    <div className="flex h-screen bg-paper">
+      <SidebarNav active="/admin/users" open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Sidebar */}
-      <div className={`${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 fixed md:static inset-y-0 left-0 z-50 w-[260px] flex flex-col border-r transition-transform duration-200`} style={{ background: "#111b21", borderColor: "#313d45" }}>
-        <div className="h-[60px] px-4 flex items-center gap-3" style={{ background: "#202c33" }}>
-          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "#00a884" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-          <span className="text-[15px] font-medium" style={{ color: "#e9edef" }}>WhatsApp AI</span>
-        </div>
-        <nav className="flex flex-col gap-0.5 py-2 flex-1">
-          {[
-            { href: "/", icon: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />, label: "Conversations" },
-            { href: "/campaigns", icon: <><path d="M22 2L11 13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></>, label: "Campaigns" },
-            { href: "/settings", icon: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>, label: "Settings" },
-          ].map(({ href, icon, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className="flex items-center gap-3 px-5 py-3 text-[14px] transition-colors"
-              style={{ color: "#8696a0" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#202c33")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
-              {label}
-            </Link>
-          ))}
-          <div className="flex items-center gap-3 px-5 py-3 text-[14px]" style={{ color: "#e9edef", background: "#2a3942" }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-            User Management
-          </div>
-        </nav>
-        <div className="px-3 py-3 border-t" style={{ borderColor: "#313d45" }}>
-          <button
-            onClick={async () => {
-              const { createSupabaseBrowserClient } = await import("@/lib/supabase-browser");
-              const sb = createSupabaseBrowserClient();
-              await sb.auth.signOut();
-              window.location.href = "/login";
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded text-[13px] transition-colors"
-            style={{ color: "#8696a0" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#202c33")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            Sign out
-          </button>
-        </div>
-      </div>
-
-      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header */}
-        <div className="h-[60px] px-4 md:px-6 flex items-center justify-between gap-3 flex-shrink-0" style={{ background: "#202c33" }}>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="md:hidden w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#aebac1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </button>
-            <div>
-              <h2 className="text-[16px] font-normal" style={{ color: "#e9edef" }}>User Management</h2>
-              <p className="text-[12px] hidden sm:block" style={{ color: "#8696a0" }}>Create and manage user accounts & permissions</p>
-            </div>
-          </div>
-          <button
-            onClick={() => { setShowForm(true); setFormError(null); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-all"
-            style={{ background: "#00a884", color: "#111b21" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#06cf9c")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#00a884")}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Add User
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-4 md:p-6">
-          {/* Create User Modal */}
-          {showForm && (
-            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-              <div className="w-full max-w-lg rounded-2xl p-6" style={{ background: "#1f2c34", border: "1px solid #313d45" }}>
-                <h3 className="text-[16px] font-medium mb-4" style={{ color: "#e9edef" }}>Create New User</h3>
-                <form onSubmit={handleCreate} className="space-y-4">
-                  <div>
-                    <label className="block text-[12px] font-medium mb-1.5" style={{ color: "#8696a0" }}>EMAIL</label>
-                    <input
-                      type="email"
-                      required
-                      value={formEmail}
-                      onChange={(e) => setFormEmail(e.target.value)}
-                      placeholder="user@example.com"
-                      className="w-full rounded-lg px-3 py-2 text-[14px] outline-none"
-                      style={{ background: "#2a3942", color: "#e9edef", border: "1px solid #313d45" }}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[12px] font-medium mb-1.5" style={{ color: "#8696a0" }}>PASSWORD</label>
-                    <input
-                      type="text"
-                      required
-                      value={formPassword}
-                      onChange={(e) => setFormPassword(e.target.value)}
-                      placeholder="Set a password"
-                      className="w-full rounded-lg px-3 py-2 text-[14px] outline-none"
-                      style={{ background: "#2a3942", color: "#e9edef", border: "1px solid #313d45" }}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[12px] font-medium mb-1.5" style={{ color: "#8696a0" }}>FEATURES ACCESS</label>
-                    <div className="flex flex-wrap gap-2">
-                      {ALL_FEATURES.map(({ value, label }) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => toggleFeature(formFeatures, setFormFeatures, value)}
-                          className="px-3 py-1.5 rounded-lg text-[13px] transition-all"
-                          style={{
-                            background: formFeatures.includes(value) ? "#00a884" : "#2a3942",
-                            color: formFeatures.includes(value) ? "#111b21" : "#8696a0",
-                            border: `1px solid ${formFeatures.includes(value) ? "#00a884" : "#313d45"}`,
-                          }}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[12px] font-medium mb-1.5" style={{ color: "#8696a0" }}>CHAT ACCESS (select phone numbers this user can see)</label>
-                    <div className="max-h-[200px] overflow-auto rounded-lg p-2" style={{ background: "#2a3942", border: "1px solid #313d45" }}>
-                      {phones.length === 0 ? (
-                        <p className="text-[13px] px-2 py-1" style={{ color: "#8696a0" }}>No conversations yet</p>
-                      ) : (
-                        phones.map(({ phone, name }) => (
-                          <label key={phone} className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-white/5 transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={formPhones.includes(phone)}
-                              onChange={() => togglePhone(formPhones, setFormPhones, phone)}
-                              className="accent-[#00a884]"
-                            />
-                            <span className="text-[13px]" style={{ color: "#e9edef" }}>{name || phone}</span>
-                            {name && <span className="text-[11px]" style={{ color: "#8696a0" }}>{phone}</span>}
-                          </label>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  {formError && (
-                    <div className="rounded-lg px-3 py-2" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}>
-                      <p className="text-[13px]" style={{ color: "#f87171" }}>{formError}</p>
-                    </div>
-                  )}
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowForm(false)}
-                      className="flex-1 px-4 py-2 rounded-lg text-[13px] font-medium transition-all"
-                      style={{ background: "#2a3942", color: "#8696a0", border: "1px solid #313d45" }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={formSaving}
-                      className="flex-1 px-4 py-2 rounded-lg text-[13px] font-medium transition-all disabled:opacity-50"
-                      style={{ background: "#00a884", color: "#111b21" }}
-                    >
-                      {formSaving ? "Creating..." : "Create User"}
-                    </button>
-                  </div>
-                </form>
+        <header className="px-5 md:px-10 py-6 border-b border-line bg-surface flex-shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <MobileNavToggle onClick={() => setSidebarOpen(true)} />
+              <div>
+                <p className="eyebrow">Administration</p>
+                <h1 className="font-display text-[28px] leading-none tracking-tight text-ink mt-2">
+                  Members
+                </h1>
+                <p className="text-[12.5px] text-muted mt-1.5">
+                  Create accounts, scope feature access, assign chat ownership.
+                </p>
               </div>
             </div>
-          )}
+            <button
+              onClick={() => {
+                setShowForm(true);
+                setFormError(null);
+              }}
+              className="btn-accent flex items-center gap-2"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add member
+            </button>
+          </div>
+        </header>
 
-          {/* Users List */}
-          <div className="space-y-3">
-            {users.map((user) => (
-              <div key={user.id} className="rounded-xl p-4" style={{ background: "#1f2c34", border: "1px solid #313d45" }}>
-                {editingId === user.id ? (
-                  // Edit mode
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[14px] font-medium" style={{ color: "#e9edef" }}>{user.email}</p>
-                        <p className="text-[12px]" style={{ color: "#8696a0" }}>
-                          {user.role === "superadmin" ? "Super Admin" : "User"}
-                        </p>
+        <div className="flex-1 overflow-auto p-5 md:p-10">
+          <div className="max-w-4xl space-y-3">
+            {users.length === 0 ? (
+              <div className="bg-surface border border-line rounded-lg py-16 px-8 text-center">
+                <p className="text-[14px] text-ink">No members yet.</p>
+                <p className="text-[12.5px] text-muted mt-2">Add your first team member above.</p>
+              </div>
+            ) : (
+              users.map((user) => (
+                <article
+                  key={user.id}
+                  className="bg-surface border border-line rounded-lg p-5 transition-colors hover:border-line-2"
+                >
+                  {editingId === user.id ? (
+                    <div className="space-y-5">
+                      <div className="flex items-center gap-3 pb-4 border-b border-line">
+                        <Avatar email={user.email} />
+                        <div>
+                          <p className="font-display text-[16px] tracking-tight text-ink">{user.email}</p>
+                          <p className="text-[11px] text-subtle uppercase tracking-wider mt-0.5">
+                            {user.role === "superadmin" ? "Super admin" : "Member"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Field label="New password (leave empty to keep current)">
+                        <input
+                          type="text"
+                          value={editPassword}
+                          onChange={(e) => setEditPassword(e.target.value)}
+                          placeholder="Optional new password"
+                          className="w-full bg-surface-2 border border-line rounded-md px-3 py-2.5 text-[14px] text-ink placeholder:text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft transition-all"
+                        />
+                      </Field>
+
+                      <Field label="Feature access">
+                        <FeatureChips
+                          features={editFeatures}
+                          onToggle={(f) => toggleFeature(editFeatures, setEditFeatures, f)}
+                        />
+                      </Field>
+
+                      <Field label="Chat access">
+                        <PhoneList
+                          phones={phones}
+                          selected={editPhones}
+                          onToggle={(p) => togglePhone(editPhones, setEditPhones, p)}
+                        />
+                      </Field>
+
+                      <div className="flex gap-3 pt-2 border-t border-line">
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="btn-ghost text-[13px]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleUpdate(user.id)}
+                          disabled={editSaving}
+                          className="px-4 py-2 rounded-md text-[13px] font-medium text-paper disabled:opacity-50"
+                          style={{ background: "var(--ink)" }}
+                        >
+                          {editSaving ? "Saving…" : "Save changes"}
+                        </button>
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-[12px] font-medium mb-1.5" style={{ color: "#8696a0" }}>NEW PASSWORD (leave empty to keep current)</label>
-                      <input
-                        type="text"
-                        value={editPassword}
-                        onChange={(e) => setEditPassword(e.target.value)}
-                        placeholder="New password (optional)"
-                        className="w-full rounded-lg px-3 py-2 text-[14px] outline-none"
-                        style={{ background: "#2a3942", color: "#e9edef", border: "1px solid #313d45" }}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[12px] font-medium mb-1.5" style={{ color: "#8696a0" }}>FEATURES ACCESS</label>
-                      <div className="flex flex-wrap gap-2">
-                        {ALL_FEATURES.map(({ value, label }) => (
+                  ) : (
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4 min-w-0 flex-1">
+                        <Avatar email={user.email} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2.5 flex-wrap mb-2">
+                            <p className="font-display text-[16px] tracking-tight text-ink">{user.email}</p>
+                            {user.role === "superadmin" && (
+                              <span
+                                className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+                                style={{
+                                  background: "var(--ink)",
+                                  color: "var(--paper)",
+                                }}
+                              >
+                                Super admin
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {user.allowed_features.length === 0 ? (
+                              <span className="text-[11.5px] text-subtle italic">No features granted</span>
+                            ) : (
+                              user.allowed_features.map((f) => (
+                                <span key={f} className="chip">
+                                  {f}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                          <p className="text-[12px] text-muted">
+                            {user.allowed_phones.length > 0
+                              ? `${user.allowed_phones.length} chat${user.allowed_phones.length !== 1 ? "s" : ""} assigned`
+                              : user.role !== "superadmin"
+                              ? "No chats assigned"
+                              : "Full access"}
+                          </p>
+                        </div>
+                      </div>
+                      {user.role !== "superadmin" && (
+                        <div className="flex gap-2 flex-shrink-0">
                           <button
-                            key={value}
-                            type="button"
-                            onClick={() => toggleFeature(editFeatures, setEditFeatures, value)}
-                            className="px-3 py-1.5 rounded-lg text-[13px] transition-all"
+                            onClick={() => startEdit(user)}
+                            className="btn-ghost text-[12px]"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(user.id)}
+                            className="px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
                             style={{
-                              background: editFeatures.includes(value) ? "#00a884" : "#2a3942",
-                              color: editFeatures.includes(value) ? "#111b21" : "#8696a0",
-                              border: `1px solid ${editFeatures.includes(value) ? "#00a884" : "#313d45"}`,
+                              background: "var(--danger-soft)",
+                              color: "var(--danger-ink)",
+                              border: "1px solid var(--danger)25",
                             }}
                           >
-                            {label}
+                            Delete
                           </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[12px] font-medium mb-1.5" style={{ color: "#8696a0" }}>CHAT ACCESS</label>
-                      <div className="max-h-[200px] overflow-auto rounded-lg p-2" style={{ background: "#2a3942", border: "1px solid #313d45" }}>
-                        {phones.length === 0 ? (
-                          <p className="text-[13px] px-2 py-1" style={{ color: "#8696a0" }}>No conversations yet</p>
-                        ) : (
-                          phones.map(({ phone, name }) => (
-                            <label key={phone} className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-white/5 transition-colors">
-                              <input
-                                type="checkbox"
-                                checked={editPhones.includes(phone)}
-                                onChange={() => togglePhone(editPhones, setEditPhones, phone)}
-                                className="accent-[#00a884]"
-                              />
-                              <span className="text-[13px]" style={{ color: "#e9edef" }}>{name || phone}</span>
-                              {name && <span className="text-[11px]" style={{ color: "#8696a0" }}>{phone}</span>}
-                            </label>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="px-4 py-2 rounded-lg text-[13px] font-medium transition-all"
-                        style={{ background: "#2a3942", color: "#8696a0", border: "1px solid #313d45" }}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => handleUpdate(user.id)}
-                        disabled={editSaving}
-                        className="px-4 py-2 rounded-lg text-[13px] font-medium transition-all disabled:opacity-50"
-                        style={{ background: "#00a884", color: "#111b21" }}
-                      >
-                        {editSaving ? "Saving..." : "Save Changes"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  // View mode
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-[14px] font-medium" style={{ color: "#e9edef" }}>{user.email}</p>
-                        {user.role === "superadmin" && (
-                          <span className="px-2 py-0.5 rounded text-[11px] font-medium" style={{ background: "#00a884", color: "#111b21" }}>
-                            Super Admin
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {user.allowed_features.map((f) => (
-                          <span key={f} className="px-2 py-0.5 rounded text-[11px]" style={{ background: "#2a3942", color: "#8696a0" }}>
-                            {f}
-                          </span>
-                        ))}
-                      </div>
-                      {user.allowed_phones.length > 0 && (
-                        <p className="text-[12px] mt-1.5" style={{ color: "#8696a0" }}>
-                          {user.allowed_phones.length} chat{user.allowed_phones.length !== 1 ? "s" : ""} assigned
-                        </p>
-                      )}
-                      {user.role !== "superadmin" && user.allowed_phones.length === 0 && (
-                        <p className="text-[12px] mt-1.5" style={{ color: "#667781" }}>No chats assigned</p>
+                        </div>
                       )}
                     </div>
-                    {user.role !== "superadmin" && (
-                      <div className="flex gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => startEdit(user)}
-                          className="px-3 py-1.5 rounded-lg text-[12px] transition-all"
-                          style={{ background: "#2a3942", color: "#8696a0", border: "1px solid #313d45" }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "#313d45")}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = "#2a3942")}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user.id)}
-                          className="px-3 py-1.5 rounded-lg text-[12px] transition-all"
-                          style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,0.2)")}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(239,68,68,0.1)")}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </article>
+              ))
+            )}
           </div>
         </div>
       </div>
+
+      {/* Create Modal */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(14, 20, 16, 0.45)" }}>
+          <div
+            className="w-full max-w-lg rounded-lg bg-surface border border-line p-6 animate-fade-in-up"
+            style={{ boxShadow: "var(--shadow-lg)" }}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="eyebrow text-[10px]">New member</p>
+                <h2 className="font-display text-[22px] tracking-tight text-ink mt-1.5 leading-none">
+                  Invite to workspace
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowForm(false)}
+                className="w-8 h-8 rounded-md hover:bg-hover flex items-center justify-center text-muted hover:text-ink transition-colors"
+                aria-label="Close"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreate} className="space-y-5">
+              <Field label="Email">
+                <input
+                  type="email"
+                  required
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
+                  placeholder="user@unisel.com"
+                  className="w-full bg-surface-2 border border-line rounded-md px-3 py-2.5 text-[14px] text-ink placeholder:text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft transition-all"
+                />
+              </Field>
+
+              <Field label="Password">
+                <input
+                  type="text"
+                  required
+                  value={formPassword}
+                  onChange={(e) => setFormPassword(e.target.value)}
+                  placeholder="Set a strong password"
+                  className="w-full bg-surface-2 border border-line rounded-md px-3 py-2.5 text-[14px] text-ink placeholder:text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft transition-all"
+                />
+              </Field>
+
+              <Field label="Feature access">
+                <FeatureChips
+                  features={formFeatures}
+                  onToggle={(f) => toggleFeature(formFeatures, setFormFeatures, f)}
+                />
+              </Field>
+
+              <Field label="Chat access — phone numbers">
+                <PhoneList
+                  phones={phones}
+                  selected={formPhones}
+                  onToggle={(p) => togglePhone(formPhones, setFormPhones, p)}
+                />
+              </Field>
+
+              {formError && (
+                <div
+                  className="rounded-md px-4 py-3 flex items-start gap-2"
+                  style={{
+                    background: "var(--danger-soft)",
+                    border: "1px solid var(--danger)25",
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <p className="text-[13px]" style={{ color: "var(--danger-ink)" }}>{formError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2 border-t border-line">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="flex-1 btn-ghost text-[13px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={formSaving}
+                  className="flex-1 px-4 py-2.5 rounded-md text-[13px] font-medium text-paper disabled:opacity-50"
+                  style={{ background: "var(--ink)" }}
+                >
+                  {formSaving ? "Creating…" : "Create member"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Avatar({ email }: { email: string }) {
+  return <GradAvatar seed={email} initials={email} size={44} />;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="eyebrow text-[10px] block mb-2">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function FeatureChips({
+  features,
+  onToggle,
+}: {
+  features: Feature[];
+  onToggle: (f: Feature) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {ALL_FEATURES.map(({ value, label }) => {
+        const active = features.includes(value);
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onToggle(value)}
+            className="px-3 py-1.5 rounded-md text-[12.5px] font-medium transition-all"
+            style={{
+              background: active ? "var(--accent-tint)" : "var(--surface-2)",
+              color: active ? "var(--accent-ink)" : "var(--muted)",
+              border: `1px solid ${active ? "var(--accent)" : "var(--line)"}`,
+            }}
+          >
+            {active && (
+              <span className="inline-block mr-1.5">✓</span>
+            )}
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PhoneList({
+  phones,
+  selected,
+  onToggle,
+}: {
+  phones: PhoneOption[];
+  selected: string[];
+  onToggle: (p: string) => void;
+}) {
+  return (
+    <div className="max-h-[220px] overflow-auto rounded-md p-2 bg-surface-2 border border-line">
+      {phones.length === 0 ? (
+        <p className="text-[12.5px] px-2 py-2 text-muted italic">No conversations yet.</p>
+      ) : (
+        phones.map(({ phone, name }) => (
+          <label
+            key={phone}
+            className="flex items-center gap-2.5 px-2 py-1.5 rounded cursor-pointer hover:bg-hover transition-colors"
+          >
+            <input
+              type="checkbox"
+              checked={selected.includes(phone)}
+              onChange={() => onToggle(phone)}
+            />
+            <span className="text-[13px] text-ink">{name || phone}</span>
+            {name && (
+              <span className="text-[11px] text-subtle font-mono tnum ml-auto">{phone}</span>
+            )}
+          </label>
+        ))
+      )}
     </div>
   );
 }
