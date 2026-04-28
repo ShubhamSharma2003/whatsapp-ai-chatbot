@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
-import { getAIResponse, isAutoReplyEnabled } from "@/lib/ai";
+import { getAIResponse, isAutoReplyEnabled, getDefaultConversationMode } from "@/lib/ai";
 
 const OPT_OUT_KEYWORDS = new Set([
   "stop",
@@ -185,11 +185,17 @@ export async function POST(request: NextRequest) {
     if (!conversation) {
       console.log("🆕 Creating new conversation for:", phone);
       const sourceType = repliedToCampaignId ? "campaign" : "direct";
+      // Campaign-originated chats always start in agent mode (button reply will
+      // route through AI). Direct inbound respects the global default.
+      const initialMode = repliedToCampaignId
+        ? "agent"
+        : await getDefaultConversationMode();
       const { data: newConvo, error: insertConvoError } = await supabase
         .from("conversations")
         .insert({
           phone,
           name,
+          mode: initialMode,
           source_type: sourceType,
           source_campaign_id: repliedToCampaignId,
         })

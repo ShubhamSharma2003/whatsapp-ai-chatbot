@@ -1,6 +1,39 @@
+import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { getCurrentAppUser } from "@/lib/auth";
+import { getCurrentAppUser, isSuperAdmin } from "@/lib/auth";
 import type { ConversationSource } from "@/lib/types";
+
+/**
+ * PATCH /api/conversations — bulk update
+ * Body: { mode: "agent" | "human" }
+ * Sets every visible conversation to the given mode. Superadmin-only.
+ */
+export async function PATCH(request: NextRequest) {
+  const appUser = await getCurrentAppUser();
+  if (!appUser || !isSuperAdmin(appUser)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await request.json();
+  const mode = body?.mode;
+  if (mode !== "agent" && mode !== "human") {
+    return Response.json({ error: "mode must be 'agent' or 'human'" }, { status: 400 });
+  }
+
+  // Update every conversation whose mode differs from the requested one.
+  // .neq on a never-null column matches all rows that need changing.
+  const { data, error } = await supabase
+    .from("conversations")
+    .update({ mode })
+    .neq("mode", mode)
+    .select("id");
+
+  if (error) {
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+
+  return Response.json({ ok: true, updated: data?.length ?? 0, mode });
+}
 
 export async function GET() {
   const appUser = await getCurrentAppUser();

@@ -11,7 +11,9 @@ function getOpenAI() {
 async function getSettings() {
   const { data } = await supabase
     .from("settings")
-    .select("system_prompt, ai_model, temperature, max_context_messages, auto_reply_enabled")
+    .select(
+      "system_prompt, ai_model, temperature, max_context_messages, auto_reply_enabled, default_conversation_mode"
+    )
     .eq("id", 1)
     .single();
   return data;
@@ -69,4 +71,9 @@ function stripMarkdown(text: string): string {
 export async function isAutoReplyEnabled(): Promise<boolean> {
   const settings = await getSettings();
   return settings?.auto_reply_enabled ?? true;
+}
+
+export async function getDefaultConversationMode(): Promise<"agent" | "human"> {
+  const settings = await getSettings();
+  return (settings?.default_conversation_mode as "agent" | "human") || "agent";
 }

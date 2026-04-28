@@ -87,14 +87,22 @@ export default function SettingsPage() {
   async function handleSave() {
     if (!draft) return;
     setSaving(true);
-    await fetch("/api/settings", {
+    const res = await fetch("/api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(draft),
     });
     setSaving(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("Failed to save settings:", err);
+      alert(`Failed to save settings: ${err.error || res.statusText}`);
+      return;
+    }
+    const persisted = await res.json();
+    setSettings(persisted);
+    setDraft(persisted);
     setSaved(true);
-    setSettings(draft);
     setTimeout(() => setSaved(false), 2500);
   }
 
@@ -445,6 +453,8 @@ export default function SettingsPage() {
                       ? "New conversations will be handled by the AI automatically."
                       : "New conversations will wait for a human agent to reply."}
                   </p>
+
+                  <BulkApplyMode mode={draft.default_conversation_mode} />
                 </Section>
 
                 <Section
@@ -614,6 +624,58 @@ function Toggle({
         <p className="text-[14px] font-medium text-ink">{label}</p>
         <p className="text-[12.5px] text-muted mt-0.5 leading-relaxed">{sublabel}</p>
       </div>
+    </div>
+  );
+}
+
+function BulkApplyMode({ mode }: { mode: "agent" | "human" }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ updated: number } | null>(null);
+
+  async function apply() {
+    const label = mode === "agent" ? "AI Agent" : "Human";
+    if (!confirm(`Switch every existing conversation to ${label} mode? This cannot be undone.`)) {
+      return;
+    }
+    setBusy(true);
+    setResult(null);
+    const res = await fetch("/api/conversations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(`Failed: ${err.error || res.statusText}`);
+      return;
+    }
+    const data = await res.json();
+    setResult({ updated: data.updated });
+  }
+
+  return (
+    <div className="mt-5 pt-5 border-t border-line flex flex-wrap items-center gap-3">
+      <button
+        onClick={apply}
+        disabled={busy}
+        className="btn-ghost text-[12.5px] flex items-center gap-2 disabled:opacity-50"
+      >
+        {busy ? (
+          <Dots />
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          </svg>
+        )}
+        Apply {mode === "agent" ? "AI Agent" : "Human"} mode to all existing conversations
+      </button>
+      {result && (
+        <span className="text-[12px]" style={{ color: "var(--emerald-deep)" }}>
+          ✓ {result.updated} conversation{result.updated === 1 ? "" : "s"} updated
+        </span>
+      )}
     </div>
   );
 }
