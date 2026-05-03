@@ -43,6 +43,7 @@ export async function POST(
       role: "assistant",
       content: message,
       whatsapp_msg_id: whatsappMsgId,
+      whatsapp_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID,
     })
     .select()
     .single();
