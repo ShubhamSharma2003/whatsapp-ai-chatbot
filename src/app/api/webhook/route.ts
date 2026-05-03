@@ -254,7 +254,6 @@ export async function POST(request: NextRequest) {
       content: text,
       whatsapp_msg_id: whatsappMsgId,
       campaign_id: repliedToCampaignId,
-      whatsapp_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID,
     }).select();
 
     if (insertError?.code === "23505") {
@@ -298,7 +297,6 @@ export async function POST(request: NextRequest) {
           conversation_id: conversation.id,
           role: "assistant",
           content: OPT_OUT_CONFIRMATION,
-          whatsapp_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID,
         });
       } catch (err) {
         console.error("Failed to send opt-out confirmation:", err);
@@ -368,7 +366,6 @@ export async function POST(request: NextRequest) {
       conversation_id: conversation.id,
       role: "assistant",
       content: aiResponse,
-      whatsapp_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID,
     });
 
     // Update conversation timestamp again
