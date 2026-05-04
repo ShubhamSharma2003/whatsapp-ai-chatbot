@@ -607,15 +607,15 @@ function Toggle({
     <div className="flex items-start gap-4">
       <button
         onClick={() => onChange(!enabled)}
-        className="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors duration-200 mt-0.5"
-        style={{ background: enabled ? "var(--accent)" : "var(--line-2)" }}
+        className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 mt-0.5"
+        style={{ background: enabled ? "var(--accent)" : "#cbd5e1" }}
         aria-pressed={enabled}
       >
         <span
-          className="absolute top-0.5 w-5 h-5 rounded-full transition-transform duration-200"
+          className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform duration-200"
           style={{
             background: "white",
-            transform: enabled ? "translateX(26px)" : "translateX(2px)",
+            transform: enabled ? "translateX(20px)" : "translateX(0px)",
             boxShadow: "0 1px 3px rgba(14, 20, 16, 0.2)",
           }}
         />

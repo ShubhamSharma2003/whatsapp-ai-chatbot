@@ -35,13 +35,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json();
 
-  console.log("=== WEBHOOK RECEIVED ===");
-  console.log("Full body:", JSON.stringify(body, null, 2));
-  console.log("Object type:", body.object);
-
   // Only process whatsapp_business_account events
   if (body.object !== "whatsapp_business_account") {
-    console.log("❌ Ignored - wrong object type:", body.object);
     return Response.json({ status: "ignored" });
   }
 
@@ -49,15 +44,11 @@ export async function POST(request: NextRequest) {
   const changes = entry?.changes?.[0];
   const value = changes?.value;
 
-  console.log("Entry:", JSON.stringify(entry, null, 2));
-  console.log("Value:", JSON.stringify(value, null, 2));
-
   // ─── Handle status updates (delivered, read) for campaign tracking ───
   if (value?.statuses?.length && !value?.messages?.length) {
     for (const status of value.statuses) {
       const msgId = status.id;
       const statusName = status.status; // sent, delivered, read, failed
-      console.log(`📊 Status update: ${msgId} → ${statusName}`);
 
       if (statusName === "delivered") {
         const { data: recipient } = await supabase
@@ -107,11 +98,8 @@ export async function POST(request: NextRequest) {
 
   // Only process actual messages
   if (!value?.messages?.[0]) {
-    console.log("❌ No message found:", value?.statuses);
     return Response.json({ status: "no_message" });
   }
-
-  console.log("✅ Message found:", value.messages[0]);
 
   const message = value.messages[0];
   const contact = value.contacts?.[0];
@@ -129,7 +117,6 @@ export async function POST(request: NextRequest) {
     // User clicked a QUICK_REPLY button on a template
     text = message.button?.text || message.button?.payload || null;
     isButtonReply = true;
-    console.log("🔘 Button reply received:", text);
   } else if (message.type === "interactive") {
     // Interactive list/button reply
     const interactive = message.interactive;
@@ -140,7 +127,6 @@ export async function POST(request: NextRequest) {
       text = interactive.list_reply?.title || null;
       isButtonReply = true;
     }
-    console.log("🔘 Interactive reply received:", text);
   } else {
     // Ignore media and other non-text types
     return Response.json({ status: "non_text" });
@@ -151,9 +137,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    console.log("📱 Processing message from:", phone);
-    console.log("📝 Message text:", text);
-
     // ─── Look up context recipient FIRST so a new conversation can be
     //     tagged with its source origin at insert time ───
     let repliedToCampaignId: string | null = null;
@@ -178,12 +161,7 @@ export async function POST(request: NextRequest) {
       .eq("phone", phone)
       .single();
 
-    if (convoError) {
-      console.log("⚠️ Conversation query error:", convoError);
-    }
-
     if (!conversation) {
-      console.log("🆕 Creating new conversation for:", phone);
       const sourceType = repliedToCampaignId ? "campaign" : "direct";
       // Campaign-originated chats always start in agent mode (button reply will
       // route through AI). Direct inbound respects the global default.
@@ -206,9 +184,7 @@ export async function POST(request: NextRequest) {
         return Response.json({ error: insertConvoError.message }, { status: 500 });
       }
       conversation = newConvo;
-      console.log("✅ Conversation created:", conversation.id);
     } else if (name && name !== conversation.name) {
-      console.log("📝 Updating conversation name:", name);
       await supabase
         .from("conversations")
         .update({ name })
@@ -247,7 +223,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Store user message (ignore duplicates)
-    console.log("💾 Storing message in conversation:", conversation.id);
     const { error: insertError } = await supabase.from("messages").insert({
       conversation_id: conversation.id,
       role: "user",
@@ -257,14 +232,12 @@ export async function POST(request: NextRequest) {
     }).select();
 
     if (insertError?.code === "23505") {
-      console.log("⚠️ Duplicate message, ignoring");
       return Response.json({ status: "duplicate" });
     }
     if (insertError) {
       console.error("❌ Failed to store message:", insertError);
       return Response.json({ error: insertError.message }, { status: 500 });
     }
-    console.log("✅ Message stored successfully");
 
     // Update conversation timestamp
     await supabase
@@ -275,13 +248,11 @@ export async function POST(request: NextRequest) {
     // ─── Opt-out handling ───
     // If user already opted out: store message (already done above), stay silent.
     if (conversation.opted_out) {
-      console.log("🚫 Opted-out user, no reply:", phone);
       return Response.json({ status: "opted_out_silent" });
     }
 
     // Newly triggering opt-out keyword: flag, send single confirmation, stop.
     if (!isButtonReply && isOptOutKeyword(text)) {
-      console.log("🚫 Opt-out keyword received from:", phone);
       await supabase
         .from("conversations")
         .update({
@@ -311,7 +282,6 @@ export async function POST(request: NextRequest) {
 
     if (isButtonReply && repliedToCampaignId) {
       // Campaign button click → always start AI chat, switch conversation to agent mode
-      console.log("🤖 Button click on campaign template — activating AI agent");
       await supabase
         .from("conversations")
         .update({ mode: "agent" })
@@ -358,8 +328,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Send response via WhatsApp
-    const waResult = await sendWhatsAppMessage(phone, aiResponse);
-    console.log("WhatsApp send result:", JSON.stringify(waResult));
+    await sendWhatsAppMessage(phone, aiResponse);
 
     // Store AI response
     await supabase.from("messages").insert({

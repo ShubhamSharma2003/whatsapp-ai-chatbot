@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 
 function validateWebhookSecret(request: NextRequest): boolean {
   const secret = process.env.VAPI_WEBHOOK_SECRET;
-  if (!secret) return true;
+  if (!secret) return false;
   const auth = request.headers.get('authorization') ?? '';
   return auth === secret || auth === `Bearer ${secret}`;
 }
@@ -34,7 +34,6 @@ export async function POST(request: NextRequest) {
   };
 
   const { message } = body;
-  console.log('webhook received:', message?.type, 'callId:', message?.call?.id, 'status:', message?.call?.status);
   if (!message?.type) return NextResponse.json({ received: true });
 
   const callId = message.call?.id;

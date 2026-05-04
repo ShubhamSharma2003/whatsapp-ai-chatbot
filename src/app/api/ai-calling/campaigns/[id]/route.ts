@@ -39,7 +39,7 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   if (action === 'start' || action === 'resume') {
-    fetch(`${origin}/api/ai-calling/worker`, { method: 'POST' }).catch((e) => console.error('worker trigger failed:', e));
+    fetch(`${origin}/api/ai-calling/worker`, { method: 'POST' }).catch(() => {});
   }
 
   return NextResponse.json(data);

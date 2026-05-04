@@ -94,13 +94,14 @@ export async function POST(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const workerSecret = process.env.WORKER_SECRET;
 
-  if (cronSecret || workerSecret) {
-    const valid =
-      (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
-      (workerSecret && authHeader === `Bearer ${workerSecret}`);
-    if (!valid) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!cronSecret && !workerSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const valid =
+    (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
+    (workerSecret && authHeader === `Bearer ${workerSecret}`);
+  if (!valid) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Reclaim any rows stuck in 'sending' from a previous crashed worker
