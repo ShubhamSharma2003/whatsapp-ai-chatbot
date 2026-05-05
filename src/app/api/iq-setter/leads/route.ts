@@ -9,7 +9,7 @@ const TEMPLATE_HEADER_IMAGE_URL =
   "https://wlaimpmijyogcuhacqnv.supabase.co/storage/v1/object/public/campaign-images/campaign-headers/1777179532533.png";
 // Flattened: Meta rejects newlines and 4+ consecutive spaces in body variables (error 132018)
 const TEMPLATE_BODY_TEXT =
-  "To help you better, may I understand your requirement so our 20+ years of real estate experience can serve you in the best way: 1) Investment or self-use, 2) Your preferred budget, 3) Suitable time for a call or meeting. This will help us suggest the most suitable options for you 😊";
+  "Thanks for your enquiry! To help you better, may I understand your requirement so our 20+ years of real estate experience can serve you in the best way: 1) Investment or self-use, 2) Your preferred budget, 3) Suitable time for a call or meeting. This will help us suggest the most suitable options for you 😊";
 
 // Fallback to "sir" when name is missing, blank, or has no letter characters
 // (covers mojibake like "????? ???" from upstream encoding issues)
