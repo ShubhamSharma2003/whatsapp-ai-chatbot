@@ -122,12 +122,19 @@ export default function Dashboard() {
           );
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "conversations" },
+        () => {
+          fetchConversations();
+        }
+      )
       .subscribe();
 
     return () => {
       supabase?.removeChannel(channel);
     };
-  }, [selectedId, supabase]);
+  }, [selectedId, supabase, fetchConversations]);
 
   async function toggleMode() {
     if (!selected) return;
