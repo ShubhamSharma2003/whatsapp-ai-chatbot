@@ -22,6 +22,10 @@ function sanitizeName(raw: string | null | undefined): string {
 }
 
 export async function POST(request: NextRequest) {
+  console.log("[iq-setter/leads] NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "set" : "MISSING");
+  console.log("[iq-setter/leads] SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "set" : "MISSING");
+  console.log("[iq-setter/leads] IQ_SETTER_API_KEY:", process.env.IQ_SETTER_API_KEY ? "set" : "MISSING");
+
   // Auth
   const apiKey = request.headers.get("x-api-key");
   if (!apiKey || apiKey !== process.env.IQ_SETTER_API_KEY) {
@@ -70,6 +74,7 @@ export async function POST(request: NextRequest) {
     .select()
     .single();
 
+  console.log("[iq-setter/leads] lead insert result:", { data: lead, error: leadError });
   if (leadError) {
     console.error("Failed to insert lead:", leadError);
     return Response.json({ error: "Failed to create lead" }, { status: 500 });
@@ -123,6 +128,7 @@ export async function POST(request: NextRequest) {
       )
       .select()
       .single();
+    console.log("[iq-setter/leads] conversation upsert result:", { data: newConv, error: newConvError });
     if (newConvError) {
       console.error("Failed to create conversation:", newConvError);
     }
@@ -150,6 +156,13 @@ export async function POST(request: NextRequest) {
       .from("leads")
       .update({ status: "template_sent", template_sent: TEMPLATE_NAME })
       .eq("id", lead.id);
+    if (conversationId) {
+      await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        role: "assistant",
+        content: `[Template: ${TEMPLATE_NAME}] ${TEMPLATE_BODY_TEXT}`,
+      });
+    }
   } catch (err) {
     console.error("Failed to send WhatsApp template:", err);
     await supabase
