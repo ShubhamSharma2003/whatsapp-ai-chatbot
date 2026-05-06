@@ -21,11 +21,14 @@ function sanitizeName(raw: string | null | undefined): string {
   return trimmed;
 }
 
+export async function GET() {
+  return Response.json({ status: "ok" });
+}
+
 export async function POST(request: NextRequest) {
-  console.log("[iq-setter/leads] NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "set" : "MISSING");
+   console.log("[iq-setter/leads] NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "set" : "MISSING");
   console.log("[iq-setter/leads] SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "set" : "MISSING");
   console.log("[iq-setter/leads] IQ_SETTER_API_KEY:", process.env.IQ_SETTER_API_KEY ? "set" : "MISSING");
-
   // Auth
   const apiKey = request.headers.get("x-api-key");
   if (!apiKey || apiKey !== process.env.IQ_SETTER_API_KEY) {
@@ -34,6 +37,7 @@ export async function POST(request: NextRequest) {
 
   // Parse + validate
   const body = await request.json();
+  console.log("[iq-setter/leads] incoming payload:", JSON.stringify(body));
   for (const field of REQUIRED_FIELDS) {
     if (!body[field]) {
       return Response.json(
@@ -73,8 +77,9 @@ export async function POST(request: NextRequest) {
     .insert({ lead_id, phone, name, lead_source, lead_type, status: "received" })
     .select()
     .single();
+      console.log("[iq-setter/leads] lead insert result:", { data: lead, error: leadError });
 
-  console.log("[iq-setter/leads] lead insert result:", { data: lead, error: leadError });
+
   if (leadError) {
     console.error("Failed to insert lead:", leadError);
     return Response.json({ error: "Failed to create lead" }, { status: 500 });
@@ -128,7 +133,8 @@ export async function POST(request: NextRequest) {
       )
       .select()
       .single();
-    console.log("[iq-setter/leads] conversation upsert result:", { data: newConv, error: newConvError });
+          console.log("[iq-setter/leads] conversation upsert result:", { data: newConv, error: newConvError });
+
     if (newConvError) {
       console.error("Failed to create conversation:", newConvError);
     }
