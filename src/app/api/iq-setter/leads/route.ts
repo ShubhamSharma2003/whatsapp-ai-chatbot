@@ -160,7 +160,9 @@ export async function POST(request: NextRequest) {
       await supabase.from("messages").insert({
         conversation_id: conversationId,
         role: "assistant",
-        content: `[Template: ${TEMPLATE_NAME}] ${TEMPLATE_BODY_TEXT}`,
+        content: TEMPLATE_BODY_TEXT,
+        media_url: TEMPLATE_HEADER_IMAGE_URL,
+        media_type: "image",
       });
     }
   } catch (err) {
