@@ -19,6 +19,9 @@ async function getSettings() {
   return data;
 }
 
+/**
+ * BC: campaign > global > default. Used by callers that don't have a lead-type prompt.
+ */
 export function resolveSystemPrompt(
   campaignPrompt: string | null | undefined,
   globalPrompt: string | null | undefined
@@ -28,13 +31,60 @@ export function resolveSystemPrompt(
   return PROPERTY_SYSTEM_PROMPT;
 }
 
+/**
+ * Full chain: campaign > lead-type > global > default.
+ * Lead-type prompt sits between campaign-specific and global so per-project knowledge
+ * wins over generic settings but yields to an explicit campaign override.
+ */
+export function resolveSystemPromptChain(
+  campaignPrompt: string | null | undefined,
+  leadTypePrompt: string | null | undefined,
+  globalPrompt: string | null | undefined
+): string {
+  if (campaignPrompt?.trim()) return campaignPrompt.trim();
+  if (leadTypePrompt?.trim()) return leadTypePrompt.trim();
+  if (globalPrompt?.trim()) return globalPrompt.trim();
+  return PROPERTY_SYSTEM_PROMPT;
+}
+
+export interface AIResponseOptions {
+  campaignSystemPrompt?: string | null;
+  leadTypeSystemPrompt?: string | null;
+  /** Set true when the assistant has already messaged this conversation (welcome/brochure already sent). */
+  alreadyGreeted?: boolean;
+  /** Set true when a brochure was sent earlier so the AI doesn't re-offer it. */
+  brochureSent?: boolean;
+}
+
 export async function getAIResponse(
   messages: { role: "user" | "assistant"; content: string }[],
-  campaignSystemPrompt?: string | null
+  options: AIResponseOptions = {}
 ) {
   const settings = await getSettings();
 
-  const systemPrompt = resolveSystemPrompt(campaignSystemPrompt, settings?.system_prompt);
+  const baseSystemPrompt = resolveSystemPromptChain(
+    options.campaignSystemPrompt,
+    options.leadTypeSystemPrompt,
+    settings?.system_prompt
+  );
+
+  // Append a context hint so the model doesn't reintroduce itself or re-offer the brochure.
+  // Done at runtime (not stored in settings) because the hint depends on per-conversation state.
+  const continuationParts: string[] = [];
+  if (options.alreadyGreeted) {
+    continuationParts.push(
+      "You have already greeted this lead and shared the welcome message. Do NOT reintroduce yourself or repeat the welcome — reply directly to the user's last message."
+    );
+  }
+  if (options.brochureSent) {
+    continuationParts.push(
+      "A brochure has already been delivered to this lead in an earlier message. Do not re-send or re-offer it. Reference it only if the user asks."
+    );
+  }
+
+  const systemPrompt = continuationParts.length
+    ? `${baseSystemPrompt}\n\n[CONVERSATION CONTEXT]\n${continuationParts.join("\n")}`
+    : baseSystemPrompt;
 
   const model = settings?.ai_model || process.env.AI_MODEL || "gpt-4o-mini";
   const temperature = settings?.temperature ?? 0.7;

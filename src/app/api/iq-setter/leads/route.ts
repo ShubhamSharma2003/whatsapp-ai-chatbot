@@ -1,14 +1,26 @@
 import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { sendWhatsAppTemplate } from "@/lib/whatsapp";
+import {
+  sendWhatsAppMedia,
+  sendWhatsAppMessage,
+  sendWhatsAppTemplate,
+} from "@/lib/whatsapp";
+import {
+  flattenTemplateParam,
+  mediaTypeFromMime,
+  resolveLeadTypeTemplate,
+  resolveTemplateBodyParams,
+} from "@/lib/lead-types";
 
 const REQUIRED_FIELDS = ["lead_id", "phone", "name", "lead_source", "lead_type"] as const;
-const TEMPLATE_NAME = "order_tracking_link_bi";
-const TEMPLATE_LANGUAGE = "en";
-const TEMPLATE_HEADER_IMAGE_URL =
+
+// Hardcoded fallback used only when no DB row matches and no default row exists.
+// Preserves pre-migration behavior so deploys are safe even before any lead_type_templates rows exist.
+const FALLBACK_TEMPLATE_NAME = "order_tracking_link_bi";
+const FALLBACK_TEMPLATE_LANGUAGE = "en";
+const FALLBACK_TEMPLATE_HEADER_IMAGE_URL =
   "https://wlaimpmijyogcuhacqnv.supabase.co/storage/v1/object/public/campaign-images/campaign-headers/1777179532533.png";
-// Flattened: Meta rejects newlines and 4+ consecutive spaces in body variables (error 132018)
-const TEMPLATE_BODY_TEXT =
+const FALLBACK_TEMPLATE_BODY_TEXT =
   "Thanks for your enquiry! To help you better, may I understand your requirement so our 20+ years of real estate experience can serve you in the best way: 1) Investment or self-use, 2) Your preferred budget, 3) Suitable time for a call or meeting. This will help us suggest the most suitable options for you 😊";
 
 // Fallback to "sir" when name is missing, blank, or has no letter characters
@@ -26,9 +38,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-   console.log("[iq-setter/leads] NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "set" : "MISSING");
+  console.log("[iq-setter/leads] NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "set" : "MISSING");
   console.log("[iq-setter/leads] SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "set" : "MISSING");
   console.log("[iq-setter/leads] IQ_SETTER_API_KEY:", process.env.IQ_SETTER_API_KEY ? "set" : "MISSING");
+
   // Auth
   const apiKey = request.headers.get("x-api-key");
   if (!apiKey || apiKey !== process.env.IQ_SETTER_API_KEY) {
@@ -71,14 +84,24 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Insert lead record
+  // Resolve template config from DB (exact lead_type → default → null)
+  const tpl = await resolveLeadTypeTemplate(lead_type);
+
+  // Insert lead record (link template id when matched)
   const { data: lead, error: leadError } = await supabase
     .from("leads")
-    .insert({ lead_id, phone, name, lead_source, lead_type, status: "received" })
+    .insert({
+      lead_id,
+      phone,
+      name,
+      lead_source,
+      lead_type,
+      lead_type_template_id: tpl?.id ?? null,
+      status: "received",
+    })
     .select()
     .single();
-      console.log("[iq-setter/leads] lead insert result:", { data: lead, error: leadError });
-
+  console.log("[iq-setter/leads] lead insert result:", { data: lead, error: leadError });
 
   if (leadError) {
     console.error("Failed to insert lead:", leadError);
@@ -88,7 +111,7 @@ export async function POST(request: NextRequest) {
   // Find or create conversation
   const { data: existingConv } = await supabase
     .from("conversations")
-    .select("id, source_type, opted_out")
+    .select("id, source_type, opted_out, active_lead_type")
     .eq("phone", phone)
     .maybeSingle();
 
@@ -112,12 +135,17 @@ export async function POST(request: NextRequest) {
 
   if (existingConv) {
     conversationId = existingConv.id;
-    // Backfill IQ Setter origin if conversation had no source yet
+    // Backfill IQ Setter origin if conversation had no source yet, and pin lead_type
+    const updates: Record<string, unknown> = {};
     if (!existingConv.source_type) {
-      await supabase
-        .from("conversations")
-        .update({ source_type: "iq_setter", source_lead_id: lead.id })
-        .eq("id", existingConv.id);
+      updates.source_type = "iq_setter";
+      updates.source_lead_id = lead.id;
+    }
+    if (existingConv.active_lead_type !== lead_type) {
+      updates.active_lead_type = lead_type;
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabase.from("conversations").update(updates).eq("id", existingConv.id);
     }
   } else {
     const { data: newConv, error: newConvError } = await supabase
@@ -128,12 +156,13 @@ export async function POST(request: NextRequest) {
           name,
           source_type: "iq_setter",
           source_lead_id: lead.id,
+          active_lead_type: lead_type,
         },
         { onConflict: "phone" }
       )
       .select()
       .single();
-          console.log("[iq-setter/leads] conversation upsert result:", { data: newConv, error: newConvError });
+    console.log("[iq-setter/leads] conversation upsert result:", { data: newConv, error: newConvError });
 
     if (newConvError) {
       console.error("Failed to create conversation:", newConvError);
@@ -149,30 +178,50 @@ export async function POST(request: NextRequest) {
       .eq("id", lead.id);
   }
 
-  // Send WhatsApp template
+  // ─── Send sequence: template → brochure → extra info ───
+  const cleanName = sanitizeName(name);
+  const sendResults = {
+    templateSent: false,
+    brochureSent: false,
+    extraInfoSent: false,
+    errors: [] as string[],
+  };
+
+  // 1. Welcome template
+  const templateName = tpl?.template_name ?? FALLBACK_TEMPLATE_NAME;
+  const templateLanguage = tpl?.template_language ?? FALLBACK_TEMPLATE_LANGUAGE;
+  const templateHeaderImage =
+    tpl?.template_header_image_url ?? FALLBACK_TEMPLATE_HEADER_IMAGE_URL;
+  const templateBodyText = tpl?.template_body_text || FALLBACK_TEMPLATE_BODY_TEXT;
+  const templateBodyParams = resolveTemplateBodyParams(tpl?.template_body_params, {
+    name: cleanName,
+    bodyText: templateBodyText,
+  });
+  // Meta rejects newlines/tabs/4+ spaces in body params (error 132018) — flatten for the API
+  // call only; the DB/messages copy keeps the original line breaks for readability.
+  const wireParams = templateBodyParams.map(flattenTemplateParam);
+
   try {
     await sendWhatsAppTemplate(
       phone,
-      TEMPLATE_NAME,
-      TEMPLATE_LANGUAGE,
-      [sanitizeName(name), TEMPLATE_BODY_TEXT],
-      TEMPLATE_HEADER_IMAGE_URL
+      templateName,
+      templateLanguage,
+      wireParams,
+      templateHeaderImage || undefined
     );
-    await supabase
-      .from("leads")
-      .update({ status: "template_sent", template_sent: TEMPLATE_NAME })
-      .eq("id", lead.id);
+    sendResults.templateSent = true;
     if (conversationId) {
       await supabase.from("messages").insert({
         conversation_id: conversationId,
         role: "assistant",
-        content: TEMPLATE_BODY_TEXT,
-        media_url: TEMPLATE_HEADER_IMAGE_URL,
-        media_type: "image",
+        content: templateBodyText,
+        media_url: templateHeaderImage || null,
+        media_type: templateHeaderImage ? "image" : null,
       });
     }
   } catch (err) {
     console.error("Failed to send WhatsApp template:", err);
+    sendResults.errors.push(`template:${String(err)}`);
     await supabase
       .from("leads")
       .update({ status: "failed", error: String(err) })
@@ -187,5 +236,68 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return Response.json({ success: true, message: "Lead received" });
+  // 2. Brochure (only when configured)
+  if (tpl?.brochure_url) {
+    try {
+      const mediaType = mediaTypeFromMime(tpl.brochure_mime);
+      await sendWhatsAppMedia(
+        phone,
+        mediaType,
+        tpl.brochure_url,
+        tpl.brochure_caption ?? undefined,
+        mediaType === "document"
+          ? tpl.brochure_filename ?? "brochure.pdf"
+          : undefined
+      );
+      sendResults.brochureSent = true;
+      if (conversationId) {
+        await supabase.from("messages").insert({
+          conversation_id: conversationId,
+          role: "assistant",
+          content: tpl.brochure_caption ?? "",
+          media_url: tpl.brochure_url,
+          media_type: mediaType,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to send brochure:", err);
+      sendResults.errors.push(`brochure:${String(err)}`);
+    }
+  }
+
+  // 3. Extra info text (only when configured + non-empty)
+  if (tpl?.extra_info_text && tpl.extra_info_text.trim()) {
+    try {
+      await sendWhatsAppMessage(phone, tpl.extra_info_text);
+      sendResults.extraInfoSent = true;
+      if (conversationId) {
+        await supabase.from("messages").insert({
+          conversation_id: conversationId,
+          role: "assistant",
+          content: tpl.extra_info_text,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to send extra info:", err);
+      sendResults.errors.push(`extra_info:${String(err)}`);
+    }
+  }
+
+  // Final lead status
+  const finalStatus = sendResults.errors.length === 0 ? "template_sent" : "partial";
+  await supabase
+    .from("leads")
+    .update({
+      status: finalStatus,
+      template_sent: templateName,
+      error: sendResults.errors.length ? sendResults.errors.join(" | ") : null,
+    })
+    .eq("id", lead.id);
+
+  return Response.json({
+    success: true,
+    message: "Lead received",
+    template_used: tpl?.lead_type ?? "fallback",
+    sent: sendResults,
+  });
 }

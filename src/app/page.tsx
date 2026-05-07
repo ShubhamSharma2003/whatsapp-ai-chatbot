@@ -5,7 +5,11 @@ import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import SidebarNav, { MobileNavToggle } from "@/components/ui/SidebarNav";
 import { Avatar } from "@/components/ui/Avatar";
 import { Orbit, Skeleton, Dots } from "@/components/ui/Loaders";
-import type { ConversationWithLastMessage, Message } from "@/lib/types";
+import {
+  getWhatsAppWindowStatus,
+  type ConversationWithLastMessage,
+  type Message,
+} from "@/lib/types";
 
 export default function Dashboard() {
   const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient> | null>(null);
@@ -27,6 +31,12 @@ export default function Dashboard() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const deepLinkPending = useRef(false);
+  // Minute-tick clock so the 24h window badge ages live without extra fetches.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const selected = conversations.find((c) => c.id === selectedId);
 
@@ -116,7 +126,16 @@ export default function Dashboard() {
           setConversations((prev) =>
             prev.map((c) =>
               c.id === newMsg.conversation_id
-                ? { ...c, last_message: newMsg.content, updated_at: newMsg.created_at }
+                ? {
+                    ...c,
+                    last_message: newMsg.content,
+                    updated_at: newMsg.created_at,
+                    // A new user message reopens (or extends) the 24h window
+                    last_user_message_at:
+                      newMsg.role === "user"
+                        ? newMsg.created_at
+                        : c.last_user_message_at,
+                  }
                 : c
             )
           );
@@ -411,6 +430,11 @@ export default function Dashboard() {
                             />
                             {convo.mode === "agent" ? "AI" : "You"}
                           </span>
+                          <WindowBadge
+                            lastUserMessageAt={convo.last_user_message_at}
+                            now={now}
+                            compact
+                          />
                         </div>
                       </div>
                     </div>
@@ -459,6 +483,12 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <WindowBadge
+                    lastUserMessageAt={selected.last_user_message_at}
+                    now={now}
+                  />
+
                 <button
                   onClick={toggleMode}
                   className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[12px] font-medium transition-all flex-shrink-0 border"
@@ -486,6 +516,7 @@ export default function Dashboard() {
                   </span>
                   <span className="sm:hidden">{selected.mode === "agent" ? "AI" : "Human"}</span>
                 </button>
+                </div>
               </div>
 
               {selected.source && (() => {
@@ -728,6 +759,84 @@ export default function Dashboard() {
       </div>
     </div>
   );
+}
+
+function WindowBadge({
+  lastUserMessageAt,
+  now,
+  compact = false,
+}: {
+  lastUserMessageAt: string | null;
+  now: number;
+  compact?: boolean;
+}) {
+  const status = getWhatsAppWindowStatus(lastUserMessageAt, now);
+
+  let bg = "var(--surface-2)";
+  let ink = "var(--muted)";
+  let border = "var(--line)";
+  let dot = "var(--muted)";
+  let label: string;
+  let title: string;
+
+  if (!lastUserMessageAt) {
+    bg = "var(--surface-2)";
+    ink = "var(--muted)";
+    border = "var(--line)";
+    dot = "var(--muted)";
+    label = compact ? "No reply" : "Window closed · no reply yet";
+    title =
+      "User has not replied. WhatsApp 24h window is closed — only approved templates can be sent.";
+  } else if (!status.open) {
+    bg = "var(--danger-soft)";
+    ink = "var(--danger-ink)";
+    border = "var(--danger)";
+    dot = "var(--danger)";
+    label = compact ? "Closed" : "Window closed";
+    title = `24h window expired ${formatRelativePast(
+      lastUserMessageAt,
+      now
+    )}. Only templates can be sent now.`;
+  } else {
+    const hours = Math.floor(status.msRemaining / 3600_000);
+    const minutes = Math.floor((status.msRemaining % 3600_000) / 60_000);
+    const lessThanThreeHours = status.msRemaining < 3 * 3600_000;
+    bg = lessThanThreeHours ? "var(--amber-soft)" : "var(--emerald-soft)";
+    ink = lessThanThreeHours ? "var(--amber-deep)" : "var(--emerald-deep)";
+    border = lessThanThreeHours ? "var(--amber)" : "var(--emerald)";
+    dot = lessThanThreeHours ? "var(--amber)" : "var(--emerald)";
+    const remaining = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    label = compact ? `${hours > 0 ? `${hours}h` : `${minutes}m`} left` : `Open · ${remaining} left`;
+    title = `24h customer-service window open. Free-form messages allowed for ${remaining}.`;
+  }
+
+  return (
+    <span
+      className={`${
+        compact ? "text-[9.5px] px-1.5 py-0.5" : "text-[11px] px-2.5 py-1"
+      } rounded font-medium uppercase tracking-wider flex items-center gap-1 whitespace-nowrap`}
+      style={{
+        background: bg,
+        color: ink,
+        border: `1px solid ${border}25`,
+      }}
+      title={title}
+    >
+      <span
+        className={compact ? "w-1 h-1 rounded-full" : "w-1.5 h-1.5 rounded-full"}
+        style={{ background: dot }}
+      />
+      {label}
+    </span>
+  );
+}
+
+function formatRelativePast(iso: string, now: number): string {
+  const diff = now - new Date(iso).getTime();
+  const hours = Math.floor(diff / 3600_000);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 function StatPill({

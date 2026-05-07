@@ -27,7 +27,9 @@ export async function sendWhatsAppMedia(
   );
   const data = await res.json();
   if (!res.ok || data.error) {
-    console.error("WhatsApp Media API error:", JSON.stringify(data));
+    const errMsg = JSON.stringify(data);
+    console.error("WhatsApp Media API error:", errMsg);
+    throw new Error(`WhatsApp Media API error: ${errMsg}`);
   }
   return data;
 }

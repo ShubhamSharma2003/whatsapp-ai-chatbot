@@ -10,31 +10,59 @@ const upsertSingle = vi.fn().mockResolvedValue({
   error: null,
 });
 const updateEq = vi.fn().mockResolvedValue({ error: null });
+const messagesInsert = vi.fn().mockResolvedValue({ error: null });
 
 vi.mock("@/lib/supabase", () => ({
   supabase: {
-    from: vi.fn().mockImplementation(() => ({
-      insert: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({ single: insertSingle }),
-      }),
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({ maybeSingle: maybeSingleNull }),
-      }),
-      upsert: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({ single: upsertSingle }),
-      }),
-      update: vi.fn().mockReturnValue({ eq: updateEq }),
-    })),
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === "messages") {
+        return { insert: messagesInsert };
+      }
+      return {
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({ single: insertSingle }),
+        }),
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: maybeSingleNull,
+          }),
+        }),
+        upsert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({ single: upsertSingle }),
+        }),
+        update: vi.fn().mockReturnValue({ eq: updateEq }),
+      };
+    }),
   },
 }));
 
 const sendWhatsAppTemplate = vi
   .fn()
   .mockResolvedValue({ messages: [{ id: "wamid.123" }] });
+const sendWhatsAppMedia = vi
+  .fn()
+  .mockResolvedValue({ messages: [{ id: "wamid.brochure" }] });
+const sendWhatsAppMessage = vi
+  .fn()
+  .mockResolvedValue({ messages: [{ id: "wamid.text" }] });
 
 vi.mock("@/lib/whatsapp", () => ({
   sendWhatsAppTemplate: (...args: unknown[]) => sendWhatsAppTemplate(...args),
+  sendWhatsAppMedia: (...args: unknown[]) => sendWhatsAppMedia(...args),
+  sendWhatsAppMessage: (...args: unknown[]) => sendWhatsAppMessage(...args),
 }));
+
+const resolveLeadTypeTemplate = vi.fn().mockResolvedValue(null);
+
+vi.mock("@/lib/lead-types", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/lead-types")>(
+    "@/lib/lead-types"
+  );
+  return {
+    ...actual,
+    resolveLeadTypeTemplate: (...args: unknown[]) => resolveLeadTypeTemplate(...args),
+  };
+});
 
 vi.stubEnv("IQ_SETTER_API_KEY", "test-secret-key");
 
@@ -63,6 +91,9 @@ describe("POST /api/iq-setter/leads", () => {
     vi.clearAllMocks();
     maybeSingleNull.mockResolvedValue({ data: null, error: null });
     sendWhatsAppTemplate.mockResolvedValue({ messages: [{ id: "wamid.123" }] });
+    sendWhatsAppMedia.mockResolvedValue({ messages: [{ id: "wamid.brochure" }] });
+    sendWhatsAppMessage.mockResolvedValue({ messages: [{ id: "wamid.text" }] });
+    resolveLeadTypeTemplate.mockResolvedValue(null);
   });
 
   it("returns 401 when x-api-key header is missing", async () => {
@@ -88,12 +119,96 @@ describe("POST /api/iq-setter/leads", () => {
     });
   }
 
-  it("returns 200 with success on valid request", async () => {
+  it("returns 200 with success and uses fallback template when no DB row matches", async () => {
     const res = await POST(makeRequest(validPayload, "test-secret-key") as never);
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(json.message).toBe("Lead received");
+    expect(json.template_used).toBe("fallback");
+    expect(sendWhatsAppTemplate).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppMedia).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessage).not.toHaveBeenCalled();
+  });
+
+  it("uses matched lead-type template and sends template + brochure + extra info", async () => {
+    resolveLeadTypeTemplate.mockResolvedValueOnce({
+      id: "tpl-1",
+      lead_type: "property_inquiry",
+      display_name: "Property Inquiry",
+      enabled: true,
+      is_default: false,
+      template_name: "smart_world_welcome",
+      template_language: "en",
+      template_header_image_url: "https://cdn/img.png",
+      template_body_text: "Welcome body",
+      template_body_params: [{ type: "name" }, { type: "literal", value: "Smart World" }],
+      brochure_url: "https://cdn/brochure.pdf",
+      brochure_filename: "smart_world.pdf",
+      brochure_mime: "application/pdf",
+      brochure_caption: "Brochure attached",
+      extra_info_text: "Anything specific I can help with?",
+      system_prompt: "Smart World knowledge base…",
+      created_at: "2026-05-07T00:00:00Z",
+      updated_at: "2026-05-07T00:00:00Z",
+    });
+
+    const res = await POST(makeRequest(validPayload, "test-secret-key") as never);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.template_used).toBe("property_inquiry");
+    expect(json.sent.templateSent).toBe(true);
+    expect(json.sent.brochureSent).toBe(true);
+    expect(json.sent.extraInfoSent).toBe(true);
+
+    expect(sendWhatsAppTemplate).toHaveBeenCalledWith(
+      "+919876543210",
+      "smart_world_welcome",
+      "en",
+      ["Rahul Sharma", "Smart World"],
+      "https://cdn/img.png"
+    );
+    expect(sendWhatsAppMedia).toHaveBeenCalledWith(
+      "+919876543210",
+      "document",
+      "https://cdn/brochure.pdf",
+      "Brochure attached",
+      "smart_world.pdf"
+    );
+    expect(sendWhatsAppMessage).toHaveBeenCalledWith(
+      "+919876543210",
+      "Anything specific I can help with?"
+    );
+  });
+
+  it("marks lead 'partial' when brochure send fails but template succeeded", async () => {
+    resolveLeadTypeTemplate.mockResolvedValueOnce({
+      id: "tpl-2",
+      lead_type: "property_inquiry",
+      display_name: "Property Inquiry",
+      enabled: true,
+      is_default: false,
+      template_name: "welcome",
+      template_language: "en",
+      template_header_image_url: null,
+      template_body_text: "Hi",
+      template_body_params: [],
+      brochure_url: "https://cdn/brochure.pdf",
+      brochure_filename: "b.pdf",
+      brochure_mime: "application/pdf",
+      brochure_caption: null,
+      extra_info_text: null,
+      system_prompt: null,
+      created_at: "2026-05-07T00:00:00Z",
+      updated_at: "2026-05-07T00:00:00Z",
+    });
+    sendWhatsAppMedia.mockRejectedValueOnce(new Error("Meta media error"));
+
+    const res = await POST(makeRequest(validPayload, "test-secret-key") as never);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.sent.templateSent).toBe(true);
+    expect(json.sent.brochureSent).toBe(false);
+    expect(json.sent.errors[0]).toContain("brochure");
   });
 
   it("returns duplicate=true when lead_id already exists", async () => {

@@ -32,7 +32,7 @@ export async function getCurrentAppUser(): Promise<AppUser | null> {
         id: user.id,
         email: user.email,
         role: "superadmin",
-        allowed_features: ["dashboard", "campaigns", "settings", "admin"],
+        allowed_features: ["dashboard", "campaigns", "settings", "admin", "lead_types"],
         allowed_phones: [],
       }, { onConflict: "id" })
       .select()

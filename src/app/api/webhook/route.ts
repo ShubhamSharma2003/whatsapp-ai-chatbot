@@ -297,10 +297,10 @@ export async function POST(request: NextRequest) {
       return Response.json({ status: "stored_for_human" });
     }
 
-    // Fetch conversation history (last 20 messages for context)
+    // Fetch conversation history with media flags so we can detect prior brochure sends
     const { data: historyDesc } = await supabase
       .from("messages")
-      .select("role, content")
+      .select("role, content, media_type")
       .eq("conversation_id", conversation.id)
       .order("created_at", { ascending: false })
       .limit(20);
@@ -318,13 +318,37 @@ export async function POST(request: NextRequest) {
       campaignSystemPrompt = campaign?.system_prompt || null;
     }
 
+    // Fetch lead-type knowledge base for IQ Setter conversations
+    let leadTypeSystemPrompt: string | null = null;
+    if (conversation.active_lead_type) {
+      const { data: lt } = await supabase
+        .from("lead_type_templates")
+        .select("system_prompt")
+        .eq("lead_type", conversation.active_lead_type)
+        .maybeSingle();
+      leadTypeSystemPrompt = lt?.system_prompt || null;
+    }
+
+    // Detect prior assistant turns so the AI doesn't re-greet or re-offer the brochure.
+    // 'document' or 'image' from an assistant role implies brochure or template header was sent.
+    const assistantTurns = history.filter((m) => m.role === "assistant");
+    const alreadyGreeted = assistantTurns.length > 0;
+    const brochureSent = assistantTurns.some(
+      (m) => m.media_type === "document" || m.media_type === "image"
+    );
+
     // Get AI response
     const aiResponse = await getAIResponse(
       (history || []).map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
-      campaignSystemPrompt
+      {
+        campaignSystemPrompt,
+        leadTypeSystemPrompt,
+        alreadyGreeted,
+        brochureSent,
+      }
     );
 
     // Send response via WhatsApp

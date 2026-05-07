@@ -33,10 +33,51 @@ export interface Message {
 
 export interface ConversationWithLastMessage extends Conversation {
   last_message: string | null;
+  /** Timestamp of the most recent inbound (role='user') message, or null if user has never replied. */
+  last_user_message_at: string | null;
   source: ConversationSource;
 }
 
-export type Feature = "dashboard" | "campaigns" | "settings" | "admin" | "ai_calling";
+/**
+ * WhatsApp 24-hour customer-service window state.
+ * Window opens when the *user* sends a message, closes 24h after that message.
+ * While closed, only Meta-approved templates may be sent — free-form text and media are rejected.
+ */
+export interface WhatsAppWindowStatus {
+  open: boolean;
+  expiresAt: string | null;
+  msRemaining: number;
+}
+
+const WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export function getWhatsAppWindowStatus(
+  lastUserMessageAt: string | null,
+  now: number = Date.now()
+): WhatsAppWindowStatus {
+  if (!lastUserMessageAt) {
+    return { open: false, expiresAt: null, msRemaining: 0 };
+  }
+  const lastMs = new Date(lastUserMessageAt).getTime();
+  if (Number.isNaN(lastMs)) {
+    return { open: false, expiresAt: null, msRemaining: 0 };
+  }
+  const expiresMs = lastMs + WINDOW_MS;
+  const msRemaining = expiresMs - now;
+  return {
+    open: msRemaining > 0,
+    expiresAt: new Date(expiresMs).toISOString(),
+    msRemaining: Math.max(0, msRemaining),
+  };
+}
+
+export type Feature =
+  | "dashboard"
+  | "campaigns"
+  | "settings"
+  | "admin"
+  | "ai_calling"
+  | "lead_types";
 
 export interface AppUser {
   id: string;

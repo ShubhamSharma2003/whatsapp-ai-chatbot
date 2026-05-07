@@ -66,15 +66,20 @@ export async function GET() {
   const conversationIds = conversations.map((c) => c.id);
   const { data: lastMessages } = await supabase
     .from("messages")
-    .select("conversation_id, content, created_at")
+    .select("conversation_id, role, content, created_at")
     .in("conversation_id", conversationIds)
     .order("created_at", { ascending: false });
 
-  // Build a map of conversation_id -> last message content (first occurrence = most recent)
+  // Build maps: conversation_id -> last message content (any role)
+  // and conversation_id -> last *user* message timestamp (drives 24h window status).
   const lastMsgMap = new Map<string, string>();
+  const lastUserMsgAtMap = new Map<string, string>();
   for (const msg of lastMessages || []) {
     if (!lastMsgMap.has(msg.conversation_id)) {
       lastMsgMap.set(msg.conversation_id, msg.content);
+    }
+    if (msg.role === "user" && !lastUserMsgAtMap.has(msg.conversation_id)) {
+      lastUserMsgAtMap.set(msg.conversation_id, msg.created_at);
     }
   }
 
@@ -138,6 +143,7 @@ export async function GET() {
   const withLastMessage = conversations.map((convo) => ({
     ...convo,
     last_message: lastMsgMap.get(convo.id) ?? null,
+    last_user_message_at: lastUserMsgAtMap.get(convo.id) ?? null,
     source: buildSource(convo),
   }));
 
