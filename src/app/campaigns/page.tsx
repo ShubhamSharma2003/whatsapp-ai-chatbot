@@ -137,7 +137,11 @@ export default function CampaignsPage() {
   const [csvPhones, setCsvPhones] = useState<string[]>([]);
   const [csvFileName, setCsvFileName] = useState("");
   const [launching, setLaunching] = useState(false);
-  const [result, setResult] = useState<{ sentCount: number; failedCount: number } | null>(null);
+  const [result, setResult] = useState<
+    | { mode: "inline"; sentCount: number; failedCount: number }
+    | { mode: "queued"; queued: number }
+    | null
+  >(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleHeaderImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -316,7 +320,15 @@ export default function CampaignsPage() {
     const data = await res.json();
     setLaunching(false);
     if (data.success) {
-      setResult({ sentCount: data.sentCount, failedCount: data.failedCount });
+      if (data.mode === "queued") {
+        setResult({ mode: "queued", queued: data.queued });
+      } else {
+        setResult({
+          mode: "inline",
+          sentCount: data.sentCount,
+          failedCount: data.failedCount,
+        });
+      }
       setCampaignName("");
       setSelectedTemplate(null);
       setTemplateParams({});
@@ -609,7 +621,15 @@ export default function CampaignsPage() {
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                     <p className="text-[13.5px]" style={{ color: "var(--accent-ink)" }}>
-                      Campaign sent — <span className="font-semibold tnum">{result.sentCount}</span> delivered, <span className="font-semibold tnum">{result.failedCount}</span> failed.
+                      {result.mode === "queued" ? (
+                        <>
+                          Campaign queued — <span className="font-semibold tnum">{result.queued}</span> recipients. Cron will dispatch in batches.
+                        </>
+                      ) : (
+                        <>
+                          Campaign sent — <span className="font-semibold tnum">{result.sentCount}</span> delivered, <span className="font-semibold tnum">{result.failedCount}</span> failed.
+                        </>
+                      )}
                     </p>
                   </div>
                 )}
