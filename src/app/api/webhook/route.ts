@@ -166,7 +166,6 @@ export async function POST(request: NextRequest) {
       .eq("phone", phone)
       .single();
 
-    const isNewConvo = !conversation;
     let convoSourceType: "campaign" | "direct" | null = null;
     if (!conversation) {
       const sourceType = repliedToCampaignId ? "campaign" : "direct";
@@ -285,13 +284,15 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Direct-form welcome sequence ───
-    // Fires only on a brand-new direct-source conversation whose first inbound
-    // message contains the configured trigger phrase (Meta lead-form preamble).
-    // After sending the configured sequence, we fall through to the normal AI
-    // auto-reply path so the agent immediately follows up.
+    // Fires once per direct-source conversation whose inbound message contains
+    // the configured trigger phrase (Meta lead-form preamble). The
+    // `direct_form_template_sent_at` stamp is the idempotency gate — set on
+    // first send, never sent twice. We don't gate on isNewConvo because real
+    // CTWA flows can prefix a "Hi" tap before the form text arrives.
+    const convoIsDirect =
+      convoSourceType === "direct" || conversation.source_type === "direct";
     if (
-      isNewConvo &&
-      convoSourceType === "direct" &&
+      convoIsDirect &&
       !isButtonReply &&
       !conversation.direct_form_template_sent_at
     ) {
