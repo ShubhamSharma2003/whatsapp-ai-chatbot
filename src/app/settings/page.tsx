@@ -12,6 +12,8 @@ type DirectFormMessage =
       template_name: string;
       template_language?: string;
       header_image_url?: string | null;
+      header_media_type?: "image" | "document" | "video" | null;
+      header_filename?: string | null;
       body_text?: string | null;
       body_params?: Array<
         | { type: "name" }
@@ -750,8 +752,12 @@ function getTemplateButtons(t: WaTemplate | null): WaTemplateButton[] {
   return t?.components?.find((c) => c.type === "BUTTONS")?.buttons || [];
 }
 
-function templateHasImageHeader(t: WaTemplate | null): boolean {
-  return t?.components?.find((c) => c.type === "HEADER")?.format === "IMAGE";
+function getTemplateHeaderFormat(
+  t: WaTemplate | null
+): "IMAGE" | "DOCUMENT" | "VIDEO" | null {
+  const fmt = t?.components?.find((c) => c.type === "HEADER")?.format;
+  if (fmt === "IMAGE" || fmt === "DOCUMENT" || fmt === "VIDEO") return fmt;
+  return null;
 }
 
 function getTemplatePlaceholders(t: WaTemplate | null): string[] {
@@ -1060,14 +1066,17 @@ function TemplateEditor({
         i === 0 ? { type: "name" } : { type: "literal", value: "" }
       );
     }
+    const fmt = getTemplateHeaderFormat(t);
     onChange({
       template_name: t.name,
       template_language: t.language,
       body_text: getTemplateBody(t),
       body_params: defaultParams,
-      header_image_url: templateHasImageHeader(t)
-        ? message.header_image_url ?? null
+      header_image_url: fmt ? message.header_image_url ?? null : null,
+      header_media_type: fmt
+        ? (fmt.toLowerCase() as "image" | "document" | "video")
         : null,
+      header_filename: fmt === "DOCUMENT" ? message.header_filename ?? null : null,
     });
   }
 
@@ -1114,28 +1123,18 @@ function TemplateEditor({
         <TemplatePreview
           template={selected}
           headerImageUrl={message.header_image_url ?? null}
+          headerFilename={message.header_filename ?? null}
           params={ensureParamCount(placeholders.length)}
         />
       )}
 
-      {selected && templateHasImageHeader(selected) && (
-        <div>
-          <label className="eyebrow text-[10px] block mb-1.5">
-            Header image URL
-          </label>
-          <input
-            type="text"
-            value={message.header_image_url ?? ""}
-            onChange={(e) =>
-              onChange({ header_image_url: e.target.value || null })
-            }
-            className="w-full bg-surface border border-line rounded-md px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft transition-all"
-            placeholder="https://…/header.png"
-          />
-          <p className="text-[11.5px] text-muted mt-1">
-            Required — this template has an IMAGE header.
-          </p>
-        </div>
+      {selected && getTemplateHeaderFormat(selected) && (
+        <TemplateHeaderUploader
+          format={getTemplateHeaderFormat(selected)!}
+          url={message.header_image_url ?? null}
+          filename={message.header_filename ?? null}
+          onChange={(patch) => onChange(patch)}
+        />
       )}
 
       {placeholders.length > 0 && (
@@ -1196,13 +1195,111 @@ function TemplateEditor({
   );
 }
 
+function TemplateHeaderUploader({
+  format,
+  url,
+  filename,
+  onChange,
+}: {
+  format: "IMAGE" | "DOCUMENT" | "VIDEO";
+  url: string | null;
+  filename: string | null;
+  onChange: (patch: Partial<Extract<DirectFormMessage, { type: "template" }>>) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  async function handleUpload(file: File) {
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/settings/upload-direct-attachment", {
+      method: "POST",
+      body: fd,
+    });
+    setUploading(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(`Upload failed: ${err.error || res.statusText}`);
+      return;
+    }
+    const data = await res.json();
+    onChange({
+      header_image_url: data.url,
+      header_filename: format === "DOCUMENT" ? data.filename : null,
+      header_media_type: format.toLowerCase() as "image" | "document" | "video",
+    });
+  }
+
+  const accept =
+    format === "IMAGE"
+      ? "image/*"
+      : format === "VIDEO"
+      ? "video/*"
+      : "application/pdf,.pdf";
+  const label =
+    format === "IMAGE"
+      ? "Header image"
+      : format === "VIDEO"
+      ? "Header video"
+      : "Header PDF";
+
+  return (
+    <div>
+      <label className="eyebrow text-[10px] block mb-1.5">{label}</label>
+      <div className="flex items-center gap-3">
+        <label className="btn-ghost text-[12.5px] cursor-pointer">
+          {uploading ? <Dots /> : url ? "Replace" : "Upload"}
+          <input
+            type="file"
+            accept={accept}
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleUpload(f);
+            }}
+          />
+        </label>
+        {url && (
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[12px] text-muted hover:text-ink truncate max-w-xs"
+          >
+            {filename || url}
+          </a>
+        )}
+        {url && (
+          <button
+            type="button"
+            onClick={() =>
+              onChange({
+                header_image_url: null,
+                header_filename: null,
+              })
+            }
+            className="text-[12px] text-muted hover:text-danger"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+      <p className="text-[11.5px] text-muted mt-1.5">
+        Required — this template has a {format} header.
+      </p>
+    </div>
+  );
+}
+
 function TemplatePreview({
   template,
   headerImageUrl,
+  headerFilename,
   params,
 }: {
   template: WaTemplate;
   headerImageUrl: string | null;
+  headerFilename: string | null;
   params: Array<
     | { type: "name" }
     | { type: "body_text" }
@@ -1212,7 +1309,7 @@ function TemplatePreview({
   const body = getTemplateBody(template);
   const footer = getTemplateFooter(template);
   const buttons = getTemplateButtons(template);
-  const hasImage = templateHasImageHeader(template);
+  const headerFormat = getTemplateHeaderFormat(template);
 
   // Inline render of body with placeholders substituted by their resolved label
   // so the user sees a realistic preview at config time.
@@ -1237,7 +1334,7 @@ function TemplatePreview({
         Preview
       </div>
       <div className="rounded-md bg-white border border-line p-3 max-w-sm shadow-sm">
-        {hasImage && (
+        {headerFormat === "IMAGE" && (
           <div className="rounded mb-2 overflow-hidden bg-surface-2 aspect-[16/9] flex items-center justify-center">
             {headerImageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -1248,9 +1345,31 @@ function TemplatePreview({
               />
             ) : (
               <span className="text-[11px] text-muted italic">
-                Image header (set URL below)
+                Image header (upload below)
               </span>
             )}
+          </div>
+        )}
+        {headerFormat === "VIDEO" && (
+          <div className="rounded mb-2 overflow-hidden bg-surface-2 aspect-[16/9] flex items-center justify-center">
+            {headerImageUrl ? (
+              <video src={headerImageUrl} className="w-full h-full object-cover" muted />
+            ) : (
+              <span className="text-[11px] text-muted italic">
+                Video header (upload below)
+              </span>
+            )}
+          </div>
+        )}
+        {headerFormat === "DOCUMENT" && (
+          <div className="rounded mb-2 px-3 py-2 bg-surface-2 flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            <span className="text-[11.5px] text-ink truncate">
+              {headerFilename || (headerImageUrl ? "document.pdf" : "PDF header (upload below)")}
+            </span>
           </div>
         )}
         <p className="text-[13px] text-ink whitespace-pre-wrap leading-relaxed">

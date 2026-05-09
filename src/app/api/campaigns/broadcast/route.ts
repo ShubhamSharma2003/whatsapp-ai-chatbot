@@ -12,6 +12,8 @@ export async function POST(request: NextRequest) {
     phones,
     templateParams,
     headerImageUrl,
+    headerMediaType,
+    headerFilename,
     templateBody,
     templateButtons,
     systemPrompt,
@@ -42,6 +44,10 @@ export async function POST(request: NextRequest) {
       template_buttons: hasButtons ? templateButtons : null,
       template_params: templateParams || null,
       header_image_url: headerImageUrl || null,
+      header_media_type: headerImageUrl ? (headerMediaType || "image") : null,
+      header_filename: headerImageUrl && headerMediaType === "document"
+        ? (headerFilename || null)
+        : null,
       template_body: templateBody || null,
       system_prompt: systemPrompt?.trim() || null,
     })
@@ -91,6 +97,8 @@ export async function POST(request: NextRequest) {
         templateLanguage: templateLanguage || "en",
         templateParams: templateParams || null,
         headerImageUrl: headerImageUrl || null,
+        headerMediaType: headerMediaType || null,
+        headerFilename: headerFilename || null,
         phone,
       })
     )

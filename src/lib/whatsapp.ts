@@ -65,7 +65,9 @@ export async function sendWhatsAppTemplate(
   templateName: string,
   languageCode: string,
   bodyParams?: string[],
-  headerImageUrl?: string
+  headerImageUrl?: string,
+  headerMediaType?: "image" | "document" | "video" | null,
+  headerFilename?: string | null
 ) {
   const template: Record<string, unknown> = {
     name: templateName,
@@ -73,10 +75,31 @@ export async function sendWhatsAppTemplate(
   };
   const components: unknown[] = [];
   if (headerImageUrl) {
-    components.push({
-      type: "header",
-      parameters: [{ type: "image", image: { link: headerImageUrl } }],
-    });
+    const mediaType = headerMediaType || "image";
+    if (mediaType === "document") {
+      components.push({
+        type: "header",
+        parameters: [
+          {
+            type: "document",
+            document: {
+              link: headerImageUrl,
+              filename: headerFilename || "document.pdf",
+            },
+          },
+        ],
+      });
+    } else if (mediaType === "video") {
+      components.push({
+        type: "header",
+        parameters: [{ type: "video", video: { link: headerImageUrl } }],
+      });
+    } else {
+      components.push({
+        type: "header",
+        parameters: [{ type: "image", image: { link: headerImageUrl } }],
+      });
+    }
   }
   if (bodyParams && bodyParams.length > 0) {
     components.push({

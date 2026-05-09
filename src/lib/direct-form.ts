@@ -18,6 +18,8 @@ export type DirectFormMessage =
       template_name: string;
       template_language?: string;
       header_image_url?: string | null;
+      header_media_type?: "image" | "document" | "video" | null;
+      header_filename?: string | null;
       body_text?: string | null;
       body_params?: BodyParamSpec[] | null;
     }
@@ -99,15 +101,20 @@ export async function runDirectFormSequence(args: {
           msg.template_name,
           msg.template_language || "en",
           params,
-          msg.header_image_url || undefined
+          msg.header_image_url || undefined,
+          msg.header_media_type || null,
+          msg.header_filename || null
         );
 
+        const headerKind = msg.header_image_url
+          ? msg.header_media_type || "image"
+          : null;
         await supabase.from("messages").insert({
           conversation_id: args.conversationId,
           role: "assistant",
           content: renderTemplateBody(bodyText, rawParams),
           media_url: msg.header_image_url || null,
-          media_type: msg.header_image_url ? "image" : null,
+          media_type: headerKind,
         });
         sentCount += 1;
       } else if (msg.type === "text") {

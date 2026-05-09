@@ -130,6 +130,7 @@ export default function CampaignsPage() {
   const [templateParams, setTemplateParams] = useState<Record<string, string>>({});
   const [headerImageUrl, setHeaderImageUrl] = useState("");
   const [headerImagePreview, setHeaderImagePreview] = useState("");
+  const [headerFilename, setHeaderFilename] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
   const headerImageRef = useRef<HTMLInputElement>(null);
   const [campaignSystemPrompt, setCampaignSystemPrompt] = useState("");
@@ -148,6 +149,7 @@ export default function CampaignsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setHeaderImagePreview(URL.createObjectURL(file));
+    setHeaderFilename(file.name);
     setUploadingImage(true);
     const form = new FormData();
     form.append("file", file);
@@ -157,10 +159,18 @@ export default function CampaignsPage() {
     if (data.url) setHeaderImageUrl(data.url);
   }
 
-  function hasImageHeader(template: Template | null): boolean {
-    if (!template) return false;
+  function getHeaderFormat(
+    template: Template | null
+  ): "IMAGE" | "DOCUMENT" | "VIDEO" | null {
+    if (!template) return null;
     const header = template.components?.find((c) => c.type === "HEADER");
-    return header?.format === "IMAGE";
+    const fmt = header?.format;
+    if (fmt === "IMAGE" || fmt === "DOCUMENT" || fmt === "VIDEO") return fmt;
+    return null;
+  }
+
+  function hasMediaHeader(template: Template | null): boolean {
+    return getHeaderFormat(template) !== null;
   }
 
   function getFooterText(template: Template | null): string | null {
@@ -299,6 +309,8 @@ export default function CampaignsPage() {
     if (!campaignName || !selectedTemplate) return;
     const phones = getAllPhones();
     if (!phones.length) return;
+    const headerFmt = getHeaderFormat(selectedTemplate);
+    const headerMediaType = headerFmt ? headerFmt.toLowerCase() : undefined;
     setLaunching(true);
     setResult(null);
     const res = await fetch("/api/campaigns/broadcast", {
@@ -311,6 +323,11 @@ export default function CampaignsPage() {
         phones,
         templateParams,
         headerImageUrl: headerImageUrl || undefined,
+        headerMediaType: headerImageUrl ? headerMediaType : undefined,
+        headerFilename:
+          headerImageUrl && headerMediaType === "document"
+            ? headerFilename || undefined
+            : undefined,
         templateBody:
           selectedTemplate.components?.find((c) => c.type === "BODY")?.text || "",
         templateButtons: getButtons(selectedTemplate),
@@ -334,6 +351,7 @@ export default function CampaignsPage() {
       setTemplateParams({});
       setHeaderImageUrl("");
       setHeaderImagePreview("");
+      setHeaderFilename("");
       setManualNumbers("");
       setCsvPhones([]);
       setCsvFileName("");
@@ -452,75 +470,110 @@ export default function CampaignsPage() {
                   )}
 
                   {selectedTemplate &&
-                    (hasImageHeader(selectedTemplate) || getPlaceholders(selectedTemplate).length > 0) && (
+                    (hasMediaHeader(selectedTemplate) || getPlaceholders(selectedTemplate).length > 0) && (
                       <div className="mt-5 pt-5 border-t border-line space-y-3">
                         <p className="eyebrow text-[10px]">Variables</p>
 
-                        {hasImageHeader(selectedTemplate) && (
-                          <div className="flex items-start gap-3">
-                            <span className="text-[11px] text-subtle font-mono w-16 flex-shrink-0 pt-2.5 uppercase tracking-wider">
-                              Header
-                            </span>
-                            <div className="flex-1">
-                              {headerImagePreview ? (
-                                <div className="relative inline-block">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={headerImagePreview}
-                                    alt=""
-                                    className="h-24 rounded-md object-cover border border-line"
-                                  />
-                                  {uploadingImage && (
-                                    <div className="absolute inset-0 bg-ink/40 rounded-md flex items-center justify-center">
-                                      <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        {(() => {
+                          const fmt = getHeaderFormat(selectedTemplate);
+                          if (!fmt) return null;
+                          const accept =
+                            fmt === "IMAGE"
+                              ? "image/*"
+                              : fmt === "VIDEO"
+                              ? "video/*"
+                              : "application/pdf,.pdf";
+                          const label =
+                            fmt === "IMAGE"
+                              ? "Upload header image"
+                              : fmt === "VIDEO"
+                              ? "Upload header video"
+                              : "Upload header PDF";
+                          return (
+                            <div className="flex items-start gap-3">
+                              <span className="text-[11px] text-subtle font-mono w-16 flex-shrink-0 pt-2.5 uppercase tracking-wider">
+                                Header
+                              </span>
+                              <div className="flex-1">
+                                {headerImagePreview || (headerImageUrl && fmt !== "IMAGE") ? (
+                                  <div className="relative inline-block">
+                                    {fmt === "IMAGE" && (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={headerImagePreview}
+                                        alt=""
+                                        className="h-24 rounded-md object-cover border border-line"
+                                      />
+                                    )}
+                                    {fmt === "VIDEO" && (
+                                      <video
+                                        src={headerImagePreview}
+                                        className="h-24 rounded-md border border-line"
+                                        muted
+                                      />
+                                    )}
+                                    {fmt === "DOCUMENT" && (
+                                      <div className="flex items-center gap-2 px-4 py-3 bg-surface-2 border border-line rounded-md text-[12.5px] text-ink min-w-[200px]">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                          <polyline points="14 2 14 8 20 8" />
+                                        </svg>
+                                        <span className="truncate max-w-[180px]">{headerFilename || "document.pdf"}</span>
+                                      </div>
+                                    )}
+                                    {uploadingImage && (
+                                      <div className="absolute inset-0 bg-ink/40 rounded-md flex items-center justify-center">
+                                        <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                        </svg>
+                                      </div>
+                                    )}
+                                    {!uploadingImage && headerImageUrl && (
+                                      <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--accent)" }}>
+                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      </div>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        setHeaderImagePreview("");
+                                        setHeaderImageUrl("");
+                                        setHeaderFilename("");
+                                      }}
+                                      className="absolute -top-2 -left-2 w-5 h-5 rounded-full flex items-center justify-center"
+                                      style={{ background: "var(--danger)" }}
+                                    >
+                                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18" />
+                                        <line x1="6" y1="6" x2="18" y2="18" />
                                       </svg>
-                                    </div>
-                                  )}
-                                  {!uploadingImage && headerImageUrl && (
-                                    <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--accent)" }}>
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="20 6 9 17 4 12" />
-                                      </svg>
-                                    </div>
-                                  )}
+                                    </button>
+                                  </div>
+                                ) : (
                                   <button
-                                    onClick={() => {
-                                      setHeaderImagePreview("");
-                                      setHeaderImageUrl("");
-                                    }}
-                                    className="absolute -top-2 -left-2 w-5 h-5 rounded-full flex items-center justify-center"
-                                    style={{ background: "var(--danger)" }}
+                                    onClick={() => headerImageRef.current?.click()}
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-surface-2 border border-dashed border-line-2 rounded-md text-[12.5px] text-muted hover:border-accent hover:text-ink transition-all"
                                   >
-                                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                      <line x1="18" y1="6" x2="6" y2="18" />
-                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="16 16 12 12 8 16" />
+                                      <line x1="12" y1="12" x2="12" y2="21" />
+                                      <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
                                     </svg>
+                                    {label}
                                   </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => headerImageRef.current?.click()}
-                                  className="flex items-center gap-2 px-4 py-2.5 bg-surface-2 border border-dashed border-line-2 rounded-md text-[12.5px] text-muted hover:border-accent hover:text-ink transition-all"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="16 16 12 12 8 16" />
-                                    <line x1="12" y1="12" x2="12" y2="21" />
-                                    <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
-                                  </svg>
-                                  Upload header image
-                                </button>
-                              )}
-                              <input
-                                ref={headerImageRef}
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={handleHeaderImageUpload}
-                              />
+                                )}
+                                <input
+                                  ref={headerImageRef}
+                                  type="file"
+                                  accept={accept}
+                                  className="hidden"
+                                  onChange={handleHeaderImageUpload}
+                                />
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {getPlaceholders(selectedTemplate).map((num) => {
                           const exampleBody = selectedTemplate.components?.find((c) => c.type === "BODY");
@@ -686,10 +739,29 @@ export default function CampaignsPage() {
                     {selectedTemplate ? (
                       <div className="max-w-[92%] flex flex-col gap-1">
                         <div className="bg-white rounded-xl rounded-tl-sm shadow-sm overflow-hidden">
-                          {headerImagePreview && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={headerImagePreview} alt="" className="w-full h-24 object-cover" />
-                          )}
+                          {(() => {
+                            const fmt = getHeaderFormat(selectedTemplate);
+                            if (!headerImagePreview && !headerImageUrl) return null;
+                            if (fmt === "VIDEO" && headerImagePreview) {
+                              return <video src={headerImagePreview} className="w-full h-24 object-cover" muted />;
+                            }
+                            if (fmt === "DOCUMENT") {
+                              return (
+                                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                    <polyline points="14 2 14 8 20 8" />
+                                  </svg>
+                                  <span className="text-[10px] text-gray-700 truncate">{headerFilename || "document.pdf"}</span>
+                                </div>
+                              );
+                            }
+                            if (headerImagePreview) {
+                              // eslint-disable-next-line @next/next/no-img-element
+                              return <img src={headerImagePreview} alt="" className="w-full h-24 object-cover" />;
+                            }
+                            return null;
+                          })()}
                           <div className="px-3 py-2.5">
                             <p className="text-[11px] text-gray-800 leading-relaxed whitespace-pre-wrap">
                               {previewText || `Template: ${selectedTemplate.name}`}

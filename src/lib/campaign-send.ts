@@ -2,11 +2,15 @@ const META_VERSION = "v22.0";
 
 export type TemplateParams = Record<string, string> | null | undefined;
 
+export type HeaderMediaType = "image" | "document" | "video";
+
 export type SendArgs = {
   templateName: string;
   templateLanguage: string;
   templateParams: TemplateParams;
   headerImageUrl: string | null | undefined;
+  headerMediaType?: HeaderMediaType | null;
+  headerFilename?: string | null;
   phone: string;
 };
 
@@ -20,10 +24,31 @@ export type SendResult = {
 function buildMetaPayload(args: SendArgs) {
   const components: unknown[] = [];
   if (args.headerImageUrl) {
-    components.push({
-      type: "header",
-      parameters: [{ type: "image", image: { link: args.headerImageUrl } }],
-    });
+    const mediaType: HeaderMediaType = args.headerMediaType ?? "image";
+    if (mediaType === "document") {
+      components.push({
+        type: "header",
+        parameters: [
+          {
+            type: "document",
+            document: {
+              link: args.headerImageUrl,
+              filename: args.headerFilename || "document.pdf",
+            },
+          },
+        ],
+      });
+    } else if (mediaType === "video") {
+      components.push({
+        type: "header",
+        parameters: [{ type: "video", video: { link: args.headerImageUrl } }],
+      });
+    } else {
+      components.push({
+        type: "header",
+        parameters: [{ type: "image", image: { link: args.headerImageUrl } }],
+      });
+    }
   }
   if (args.templateParams && Object.keys(args.templateParams).length > 0) {
     const params = args.templateParams;

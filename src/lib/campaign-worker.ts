@@ -9,6 +9,8 @@ type CampaignCache = {
   template_language: string;
   template_params: Record<string, string> | null;
   header_image_url: string | null;
+  header_media_type: "image" | "document" | "video" | null;
+  header_filename: string | null;
   template_body: string | null;
   status: string;
 };
@@ -18,7 +20,7 @@ async function fetchCampaign(id: string, cache: Map<string, CampaignCache>) {
   const { data } = await supabase
     .from("campaigns")
     .select(
-      "id, template_name, template_language, template_params, header_image_url, template_body, status"
+      "id, template_name, template_language, template_params, header_image_url, header_media_type, header_filename, template_body, status"
     )
     .eq("id", id)
     .single();
@@ -108,6 +110,8 @@ export async function runCampaignWorker(): Promise<{
         templateLanguage: campaign.template_language,
         templateParams: campaign.template_params,
         headerImageUrl: campaign.header_image_url,
+        headerMediaType: campaign.header_media_type,
+        headerFilename: campaign.header_filename,
         phone: row.phone,
       });
       return { row, result };
