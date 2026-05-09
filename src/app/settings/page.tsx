@@ -4,7 +4,29 @@ import { useEffect, useState, useCallback } from "react";
 import SidebarNav, { MobileNavToggle } from "@/components/ui/SidebarNav";
 import { Orbit, Dots } from "@/components/ui/Loaders";
 
-type Tab = "prompt" | "ai" | "behavior" | "calling";
+type Tab = "prompt" | "ai" | "behavior" | "calling" | "direct-form";
+
+type DirectFormMessage =
+  | {
+      type: "template";
+      template_name: string;
+      template_language?: string;
+      header_image_url?: string | null;
+      body_text?: string | null;
+      body_params?: Array<
+        | { type: "name" }
+        | { type: "body_text" }
+        | { type: "literal"; value: string }
+      > | null;
+    }
+  | { type: "text"; text: string }
+  | {
+      type: "media";
+      url: string;
+      mime?: string | null;
+      filename?: string | null;
+      caption?: string | null;
+    };
 
 type Settings = {
   system_prompt: string;
@@ -14,6 +36,9 @@ type Settings = {
   auto_reply_enabled: boolean;
   default_conversation_mode: "agent" | "human";
   agent_name: string;
+  direct_form_trigger_enabled: boolean;
+  direct_form_trigger_phrase: string;
+  direct_form_messages: DirectFormMessage[];
 };
 
 type CallSettings = {
@@ -35,6 +60,7 @@ const TABS: { id: Tab; label: string; description: string; color: string }[] = [
   { id: "ai", label: "Model", description: "Engine & sampling", color: "var(--violet)" },
   { id: "behavior", label: "Behaviour", description: "Reply policy", color: "var(--sapphire)" },
   { id: "calling", label: "Calling", description: "VAPI keys", color: "var(--coral)" },
+  { id: "direct-form", label: "Direct form", description: "Lead-form auto-reply", color: "var(--warn)" },
 ];
 
 export default function SettingsPage() {
@@ -556,6 +582,15 @@ export default function SettingsPage() {
                 </Section>
               </>
             )}
+
+            {tab === "direct-form" && (
+              <DirectFormPanel
+                draft={draft}
+                onChange={(patch) =>
+                  setDraft((prev) => (prev ? { ...prev, ...patch } : prev))
+                }
+              />
+            )}
           </div>
         </div>
       </div>
@@ -676,6 +711,645 @@ function BulkApplyMode({ mode }: { mode: "agent" | "human" }) {
           ✓ {result.updated} conversation{result.updated === 1 ? "" : "s"} updated
         </span>
       )}
+    </div>
+  );
+}
+
+type WaTemplateButton = {
+  type: string;
+  text: string;
+  url?: string;
+  phone_number?: string;
+};
+
+type WaTemplateComponent = {
+  type: string;
+  format?: string;
+  text?: string;
+  buttons?: WaTemplateButton[];
+};
+
+type WaTemplate = {
+  id: string;
+  name: string;
+  status: string;
+  language: string;
+  category: string;
+  components: WaTemplateComponent[];
+};
+
+function getTemplateBody(t: WaTemplate | null): string {
+  return t?.components?.find((c) => c.type === "BODY")?.text || "";
+}
+
+function getTemplateFooter(t: WaTemplate | null): string | null {
+  return t?.components?.find((c) => c.type === "FOOTER")?.text || null;
+}
+
+function getTemplateButtons(t: WaTemplate | null): WaTemplateButton[] {
+  return t?.components?.find((c) => c.type === "BUTTONS")?.buttons || [];
+}
+
+function templateHasImageHeader(t: WaTemplate | null): boolean {
+  return t?.components?.find((c) => c.type === "HEADER")?.format === "IMAGE";
+}
+
+function getTemplatePlaceholders(t: WaTemplate | null): string[] {
+  const body = getTemplateBody(t);
+  const matches = body.match(/\{\{(\d+)\}\}/g) || [];
+  return [...new Set(matches.map((m) => m.replace(/\{\{|\}\}/g, "")))].sort(
+    (a, b) => Number(a) - Number(b)
+  );
+}
+
+function DirectFormPanel({
+  draft,
+  onChange,
+}: {
+  draft: Settings;
+  onChange: (patch: Partial<Settings>) => void;
+}) {
+  const messages = draft.direct_form_messages ?? [];
+  const [templates, setTemplates] = useState<WaTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  useEffect(() => {
+    setLoadingTemplates(true);
+    fetch("/api/campaigns/templates")
+      .then((r) => r.json())
+      .then((d) => setTemplates(Array.isArray(d) ? d : []))
+      .catch(() => setTemplates([]))
+      .finally(() => setLoadingTemplates(false));
+  }, []);
+
+  function update(idx: number, patch: Partial<DirectFormMessage>) {
+    const next = messages.map((m, i) =>
+      i === idx ? ({ ...m, ...patch } as DirectFormMessage) : m
+    );
+    onChange({ direct_form_messages: next });
+  }
+
+  function remove(idx: number) {
+    onChange({
+      direct_form_messages: messages.filter((_, i) => i !== idx),
+    });
+  }
+
+  function move(idx: number, dir: -1 | 1) {
+    const j = idx + dir;
+    if (j < 0 || j >= messages.length) return;
+    const next = messages.slice();
+    [next[idx], next[j]] = [next[j], next[idx]];
+    onChange({ direct_form_messages: next });
+  }
+
+  function add(type: DirectFormMessage["type"]) {
+    let item: DirectFormMessage;
+    if (type === "template") {
+      item = {
+        type: "template",
+        template_name: "",
+        template_language: "en",
+        header_image_url: null,
+        body_text: "",
+        body_params: [],
+      };
+    } else if (type === "text") {
+      item = { type: "text", text: "" };
+    } else {
+      item = {
+        type: "media",
+        url: "",
+        mime: null,
+        filename: null,
+        caption: null,
+      };
+    }
+    onChange({ direct_form_messages: [...messages, item] });
+  }
+
+  return (
+    <>
+      <Section
+        title="Trigger"
+        description="When a NEW direct-source conversation's first inbound message contains this phrase, the message sequence below is sent in order. AI auto-reply still fires after."
+      >
+        <Toggle
+          enabled={draft.direct_form_trigger_enabled}
+          onChange={(v) => onChange({ direct_form_trigger_enabled: v })}
+          label={
+            draft.direct_form_trigger_enabled
+              ? "Direct-form trigger is ON"
+              : "Direct-form trigger is OFF"
+          }
+          sublabel={
+            draft.direct_form_trigger_enabled
+              ? "Matching first messages will receive the configured sequence."
+              : "No automatic sequence will be sent on direct-form leads."
+          }
+        />
+        <div className="mt-6">
+          <label className="eyebrow text-[10px] block mb-2">Trigger phrase</label>
+          <textarea
+            value={draft.direct_form_trigger_phrase}
+            onChange={(e) =>
+              onChange({ direct_form_trigger_phrase: e.target.value })
+            }
+            rows={3}
+            className="w-full rounded-md px-4 py-3 text-[13px] leading-relaxed focus:outline-none resize-y bg-surface-2 text-ink border border-line focus:border-accent focus:ring-2 focus:ring-accent-soft transition-all"
+            placeholder="Hello! I filled out your form and would like to know more about your business."
+          />
+          <p className="text-[12px] text-muted mt-2">
+            Case-insensitive substring match against the user&apos;s first message.
+          </p>
+        </div>
+      </Section>
+
+      <Section
+        title="Message sequence"
+        description="Sent in order, top to bottom. Mix templates (Meta-approved), free-form text, and media attachments."
+      >
+        <div className="space-y-3">
+          {messages.length === 0 && (
+            <p className="text-[12.5px] text-muted italic">
+              No messages configured yet. Add one below.
+            </p>
+          )}
+          {messages.map((msg, idx) => (
+            <DirectFormMessageEditor
+              key={idx}
+              index={idx}
+              total={messages.length}
+              message={msg}
+              onChange={(patch) => update(idx, patch)}
+              onRemove={() => remove(idx)}
+              onMove={(dir) => move(idx, dir)}
+              templates={templates}
+              loadingTemplates={loadingTemplates}
+            />
+          ))}
+        </div>
+        <div className="mt-5 pt-5 border-t border-line flex flex-wrap gap-2">
+          <button
+            onClick={() => add("template")}
+            className="btn-ghost text-[12.5px]"
+          >
+            + Template
+          </button>
+          <button
+            onClick={() => add("text")}
+            className="btn-ghost text-[12.5px]"
+          >
+            + Text
+          </button>
+          <button
+            onClick={() => add("media")}
+            className="btn-ghost text-[12.5px]"
+          >
+            + Attachment
+          </button>
+        </div>
+      </Section>
+    </>
+  );
+}
+
+function DirectFormMessageEditor({
+  index,
+  total,
+  message,
+  onChange,
+  onRemove,
+  onMove,
+  templates,
+  loadingTemplates,
+}: {
+  index: number;
+  total: number;
+  message: DirectFormMessage;
+  onChange: (patch: Partial<DirectFormMessage>) => void;
+  onRemove: () => void;
+  onMove: (dir: -1 | 1) => void;
+  templates: WaTemplate[];
+  loadingTemplates: boolean;
+}) {
+  const typeLabel =
+    message.type === "template"
+      ? "Template"
+      : message.type === "text"
+      ? "Text"
+      : "Attachment";
+  const typeColor =
+    message.type === "template"
+      ? "var(--violet)"
+      : message.type === "text"
+      ? "var(--sapphire)"
+      : "var(--coral)";
+
+  return (
+    <div className="rounded-lg border border-line bg-surface-2 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span
+            className="w-2 h-2 rounded-full"
+            style={{ background: typeColor }}
+          />
+          <span className="text-[11.5px] uppercase tracking-wider text-subtle font-medium">
+            {index + 1}. {typeLabel}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onMove(-1)}
+            disabled={index === 0}
+            className="text-[12px] text-muted hover:text-ink disabled:opacity-30 px-2"
+            aria-label="Move up"
+          >
+            ↑
+          </button>
+          <button
+            onClick={() => onMove(1)}
+            disabled={index === total - 1}
+            className="text-[12px] text-muted hover:text-ink disabled:opacity-30 px-2"
+            aria-label="Move down"
+          >
+            ↓
+          </button>
+          <button
+            onClick={onRemove}
+            className="text-[12px] text-muted hover:text-ink px-2"
+            aria-label="Remove"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {message.type === "template" && (
+        <TemplateEditor
+          message={message}
+          onChange={onChange}
+          templates={templates}
+          loadingTemplates={loadingTemplates}
+        />
+      )}
+      {message.type === "text" && (
+        <textarea
+          value={message.text}
+          onChange={(e) => onChange({ text: e.target.value })}
+          rows={3}
+          className="w-full rounded-md px-3 py-2 text-[13px] leading-relaxed focus:outline-none resize-y bg-surface text-ink border border-line focus:border-accent focus:ring-2 focus:ring-accent-soft transition-all"
+          placeholder="Free-form text message…"
+        />
+      )}
+      {message.type === "media" && (
+        <MediaEditor message={message} onChange={onChange} />
+      )}
+    </div>
+  );
+}
+
+function TemplateEditor({
+  message,
+  onChange,
+  templates,
+  loadingTemplates,
+}: {
+  message: Extract<DirectFormMessage, { type: "template" }>;
+  onChange: (patch: Partial<DirectFormMessage>) => void;
+  templates: WaTemplate[];
+  loadingTemplates: boolean;
+}) {
+  const selected =
+    templates.find(
+      (t) =>
+        t.name === message.template_name &&
+        t.language === (message.template_language || "en")
+    ) || null;
+
+  const placeholders = getTemplatePlaceholders(selected);
+  const params = message.body_params ?? [];
+
+  // Keep params length in sync with detected placeholders. Extras become empty
+  // literals; missing ones default to {type:"literal", value:""}.
+  function ensureParamCount(target: number): typeof params {
+    const next = params.slice(0, target);
+    while (next.length < target) {
+      // First placeholder defaults to {{name}} for the common "Hi {{1}}" pattern.
+      if (next.length === 0) next.push({ type: "name" });
+      else next.push({ type: "literal", value: "" });
+    }
+    return next;
+  }
+
+  function pickTemplate(name: string) {
+    if (!name) {
+      onChange({ template_name: "", template_language: "en", body_params: [] });
+      return;
+    }
+    const t = templates.find((x) => x.name === name);
+    if (!t) return;
+    const phCount = getTemplatePlaceholders(t).length;
+    const defaultParams: Array<
+      | { type: "name" }
+      | { type: "body_text" }
+      | { type: "literal"; value: string }
+    > = [];
+    for (let i = 0; i < phCount; i++) {
+      defaultParams.push(
+        i === 0 ? { type: "name" } : { type: "literal", value: "" }
+      );
+    }
+    onChange({
+      template_name: t.name,
+      template_language: t.language,
+      body_text: getTemplateBody(t),
+      body_params: defaultParams,
+      header_image_url: templateHasImageHeader(t)
+        ? message.header_image_url ?? null
+        : null,
+    });
+  }
+
+  function updateParam(
+    i: number,
+    spec:
+      | { type: "name" }
+      | { type: "body_text" }
+      | { type: "literal"; value: string }
+  ) {
+    const target = ensureParamCount(Math.max(placeholders.length, params.length));
+    const next = target.map((p, idx) => (idx === i ? spec : p));
+    onChange({ body_params: next });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="eyebrow text-[10px] block mb-1.5">Approved template</label>
+        {loadingTemplates ? (
+          <p className="text-[12.5px] text-muted py-2">Loading templates…</p>
+        ) : (
+          <select
+            value={message.template_name || ""}
+            onChange={(e) => pickTemplate(e.target.value)}
+            className="w-full bg-surface border border-line rounded-md px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft transition-all"
+          >
+            <option value="">— Select template —</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.name}>
+                {t.name} ({t.language}) — {t.category}
+              </option>
+            ))}
+          </select>
+        )}
+        {!loadingTemplates && templates.length === 0 && (
+          <p className="text-[11.5px] text-muted mt-1.5">
+            No approved templates found in your Meta account.
+          </p>
+        )}
+      </div>
+
+      {selected && (
+        <TemplatePreview
+          template={selected}
+          headerImageUrl={message.header_image_url ?? null}
+          params={ensureParamCount(placeholders.length)}
+        />
+      )}
+
+      {selected && templateHasImageHeader(selected) && (
+        <div>
+          <label className="eyebrow text-[10px] block mb-1.5">
+            Header image URL
+          </label>
+          <input
+            type="text"
+            value={message.header_image_url ?? ""}
+            onChange={(e) =>
+              onChange({ header_image_url: e.target.value || null })
+            }
+            className="w-full bg-surface border border-line rounded-md px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft transition-all"
+            placeholder="https://…/header.png"
+          />
+          <p className="text-[11.5px] text-muted mt-1">
+            Required — this template has an IMAGE header.
+          </p>
+        </div>
+      )}
+
+      {placeholders.length > 0 && (
+        <div>
+          <label className="eyebrow text-[10px] block mb-1.5">
+            Body params ({placeholders.length} required)
+          </label>
+          <div className="space-y-1.5">
+            {placeholders.map((ph, i) => {
+              const filled = ensureParamCount(placeholders.length);
+              const p = filled[i];
+              return (
+                <div key={ph} className="flex items-center gap-2">
+                  <span className="text-[11px] font-mono text-subtle w-10">
+                    {`{{${ph}}}`}
+                  </span>
+                  <select
+                    value={p.type}
+                    onChange={(e) => {
+                      const t = e.target.value as
+                        | "name"
+                        | "body_text"
+                        | "literal";
+                      updateParam(
+                        i,
+                        t === "literal"
+                          ? { type: "literal", value: "" }
+                          : { type: t }
+                      );
+                    }}
+                    className="bg-surface border border-line rounded-md px-2 py-1 text-[12px] text-ink focus:outline-none"
+                  >
+                    <option value="name">name</option>
+                    <option value="body_text">body_text</option>
+                    <option value="literal">literal</option>
+                  </select>
+                  {p.type === "literal" && (
+                    <input
+                      type="text"
+                      value={p.value}
+                      onChange={(e) =>
+                        updateParam(i, {
+                          type: "literal",
+                          value: e.target.value,
+                        })
+                      }
+                      className="flex-1 bg-surface border border-line rounded-md px-2 py-1 text-[12px] text-ink focus:outline-none focus:border-accent"
+                      placeholder="literal text"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TemplatePreview({
+  template,
+  headerImageUrl,
+  params,
+}: {
+  template: WaTemplate;
+  headerImageUrl: string | null;
+  params: Array<
+    | { type: "name" }
+    | { type: "body_text" }
+    | { type: "literal"; value: string }
+  >;
+}) {
+  const body = getTemplateBody(template);
+  const footer = getTemplateFooter(template);
+  const buttons = getTemplateButtons(template);
+  const hasImage = templateHasImageHeader(template);
+
+  // Inline render of body with placeholders substituted by their resolved label
+  // so the user sees a realistic preview at config time.
+  function paramLabel(
+    p: (typeof params)[number] | undefined,
+    placeholderNum: string
+  ): string {
+    if (!p) return `{{${placeholderNum}}}`;
+    if (p.type === "name") return "‹name›";
+    if (p.type === "body_text") return "‹body_text›";
+    return p.value || `{{${placeholderNum}}}`;
+  }
+
+  const rendered = body.replace(/\{\{(\d+)\}\}/g, (_, n: string) => {
+    const idx = Number(n) - 1;
+    return paramLabel(params[idx], n);
+  });
+
+  return (
+    <div className="rounded-lg border border-line bg-[#dcf8c6]/15 p-3">
+      <div className="text-[10px] uppercase tracking-wider text-subtle mb-2">
+        Preview
+      </div>
+      <div className="rounded-md bg-white border border-line p-3 max-w-sm shadow-sm">
+        {hasImage && (
+          <div className="rounded mb-2 overflow-hidden bg-surface-2 aspect-[16/9] flex items-center justify-center">
+            {headerImageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={headerImageUrl}
+                alt="Header"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-[11px] text-muted italic">
+                Image header (set URL below)
+              </span>
+            )}
+          </div>
+        )}
+        <p className="text-[13px] text-ink whitespace-pre-wrap leading-relaxed">
+          {rendered || (
+            <span className="text-muted italic">No body text</span>
+          )}
+        </p>
+        {footer && (
+          <p className="text-[11.5px] text-muted mt-2">{footer}</p>
+        )}
+        {buttons.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-line space-y-1.5">
+            {buttons.map((b, i) => (
+              <div
+                key={i}
+                className="text-center text-[12.5px] text-[#1a73e8] py-1.5 border-t border-line first:border-t-0"
+              >
+                {b.text}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MediaEditor({
+  message,
+  onChange,
+}: {
+  message: Extract<DirectFormMessage, { type: "media" }>;
+  onChange: (patch: Partial<DirectFormMessage>) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  async function handleUpload(file: File) {
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/settings/upload-direct-attachment", {
+      method: "POST",
+      body: fd,
+    });
+    setUploading(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(`Upload failed: ${err.error || res.statusText}`);
+      return;
+    }
+    const data = await res.json();
+    onChange({
+      url: data.url,
+      mime: data.mime,
+      filename: data.filename,
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="eyebrow text-[10px] block mb-1.5">File</label>
+        <div className="flex items-center gap-3">
+          <label className="btn-ghost text-[12.5px] cursor-pointer">
+            {uploading ? <Dots /> : message.url ? "Replace" : "Upload"}
+            <input
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUpload(f);
+              }}
+            />
+          </label>
+          {message.url && (
+            <a
+              href={message.url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[12px] text-muted hover:text-ink truncate max-w-xs"
+            >
+              {message.filename || message.url}
+            </a>
+          )}
+        </div>
+        <p className="text-[11.5px] text-muted mt-1.5">
+          Stored in <code className="font-mono">direct-form-attachments</code> bucket.
+        </p>
+      </div>
+      <div>
+        <label className="eyebrow text-[10px] block mb-1.5">Caption (optional)</label>
+        <textarea
+          value={message.caption ?? ""}
+          onChange={(e) => onChange({ caption: e.target.value || null })}
+          rows={2}
+          className="w-full rounded-md px-3 py-2 text-[13px] leading-relaxed focus:outline-none resize-y bg-surface text-ink border border-line focus:border-accent focus:ring-2 focus:ring-accent-soft transition-all"
+          placeholder="Caption shown with attachment"
+        />
+      </div>
     </div>
   );
 }

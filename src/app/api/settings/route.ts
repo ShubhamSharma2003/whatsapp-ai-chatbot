@@ -19,6 +19,10 @@ export async function GET() {
       auto_reply_enabled: true,
       default_conversation_mode: "agent",
       agent_name: "Pallavi",
+      direct_form_trigger_enabled: false,
+      direct_form_trigger_phrase:
+        "Hello! I filled out your form and would like to know more about your business.",
+      direct_form_messages: [],
     });
   }
 
@@ -41,6 +45,9 @@ export async function PATCH(request: NextRequest) {
     "auto_reply_enabled",
     "default_conversation_mode",
     "agent_name",
+    "direct_form_trigger_enabled",
+    "direct_form_trigger_phrase",
+    "direct_form_messages",
   ];
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };

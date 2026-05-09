@@ -2,6 +2,11 @@ import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getAIResponse, isAutoReplyEnabled, getDefaultConversationMode } from "@/lib/ai";
+import {
+  getDirectFormConfig,
+  matchesDirectFormPhrase,
+  runDirectFormSequence,
+} from "@/lib/direct-form";
 
 const OPT_OUT_KEYWORDS = new Set([
   "stop",
@@ -161,8 +166,11 @@ export async function POST(request: NextRequest) {
       .eq("phone", phone)
       .single();
 
+    const isNewConvo = !conversation;
+    let convoSourceType: "campaign" | "direct" | null = null;
     if (!conversation) {
       const sourceType = repliedToCampaignId ? "campaign" : "direct";
+      convoSourceType = sourceType;
       // Campaign-originated chats always start in agent mode (button reply will
       // route through AI). Direct inbound respects the global default.
       const initialMode = repliedToCampaignId
@@ -274,6 +282,39 @@ export async function POST(request: NextRequest) {
       }
 
       return Response.json({ status: "opted_out" });
+    }
+
+    // ─── Direct-form welcome sequence ───
+    // Fires only on a brand-new direct-source conversation whose first inbound
+    // message contains the configured trigger phrase (Meta lead-form preamble).
+    // After sending the configured sequence, we fall through to the normal AI
+    // auto-reply path so the agent immediately follows up.
+    if (
+      isNewConvo &&
+      convoSourceType === "direct" &&
+      !isButtonReply &&
+      !conversation.direct_form_template_sent_at
+    ) {
+      const cfg = await getDirectFormConfig();
+      if (
+        cfg?.enabled &&
+        cfg.messages.length > 0 &&
+        matchesDirectFormPhrase(text, cfg.phrase)
+      ) {
+        await runDirectFormSequence({
+          phone,
+          name,
+          conversationId: conversation.id,
+          messages: cfg.messages,
+        });
+        await supabase
+          .from("conversations")
+          .update({
+            direct_form_template_sent_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conversation.id);
+      }
     }
 
     // ─── Determine whether AI should auto-reply ───
