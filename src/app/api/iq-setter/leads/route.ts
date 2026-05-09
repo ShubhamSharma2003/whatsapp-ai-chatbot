@@ -8,6 +8,7 @@ import {
 import {
   flattenTemplateParam,
   mediaTypeFromMime,
+  renderTemplateBody,
   resolveLeadTypeTemplate,
   resolveTemplateBodyParams,
 } from "@/lib/lead-types";
@@ -214,7 +215,7 @@ export async function POST(request: NextRequest) {
       await supabase.from("messages").insert({
         conversation_id: conversationId,
         role: "assistant",
-        content: templateBodyText,
+        content: renderTemplateBody(templateBodyText, templateBodyParams),
         media_url: templateHeaderImage || null,
         media_type: templateHeaderImage ? "image" : null,
       });

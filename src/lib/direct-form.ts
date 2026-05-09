@@ -7,6 +7,7 @@ import {
 import {
   flattenTemplateParam,
   mediaTypeFromMime,
+  renderTemplateBody,
   resolveTemplateBodyParams,
   type BodyParamSpec,
 } from "@/lib/lead-types";
@@ -87,10 +88,11 @@ export async function runDirectFormSequence(args: {
     try {
       if (msg.type === "template") {
         const bodyText = msg.body_text ?? "";
-        const params = resolveTemplateBodyParams(msg.body_params ?? null, {
+        const rawParams = resolveTemplateBodyParams(msg.body_params ?? null, {
           name: cleanName,
           bodyText,
-        }).map(flattenTemplateParam);
+        });
+        const params = rawParams.map(flattenTemplateParam);
 
         await sendWhatsAppTemplate(
           args.phone,
@@ -103,7 +105,7 @@ export async function runDirectFormSequence(args: {
         await supabase.from("messages").insert({
           conversation_id: args.conversationId,
           role: "assistant",
-          content: bodyText,
+          content: renderTemplateBody(bodyText, rawParams),
           media_url: msg.header_image_url || null,
           media_type: msg.header_image_url ? "image" : null,
         });

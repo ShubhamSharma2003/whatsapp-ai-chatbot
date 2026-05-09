@@ -126,3 +126,15 @@ export function flattenTemplateParam(raw: string): string {
     .replace(/ {4,}/g, "   ")
     .trim();
 }
+
+/**
+ * Substitute {{1}}, {{2}}, ... placeholders in a Meta template body with their
+ * resolved param values for storage in the messages table. Pass the un-flattened
+ * params so newlines survive in the dashboard view.
+ */
+export function renderTemplateBody(bodyText: string, params: string[]): string {
+  return bodyText.replace(/\{\{(\d+)\}\}/g, (_, idx: string) => {
+    const i = parseInt(idx, 10) - 1;
+    return params[i] ?? "";
+  });
+}
