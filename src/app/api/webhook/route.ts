@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendWhatsAppMedia, sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getAIResponse, isAutoReplyEnabled, getDefaultConversationMode } from "@/lib/ai";
 import {
+  getCompanyProfileAttachment,
   getDirectFormConfig,
   matchesDirectFormPhrase,
   runDirectFormSequence,
@@ -402,6 +403,40 @@ export async function POST(request: NextRequest) {
       role: "assistant",
       content: aiResponse,
     });
+
+    // ─── Auto-attach company profile when AI announces it ───
+    // The system prompt tells the AI to mention sharing the profile on first
+    // reply, but the AI can't actually deliver the file. If we haven't already
+    // sent a brochure to this lead and the AI's text references the profile,
+    // ship the configured PDF as a follow-up so the promise is kept.
+    if (
+      !brochureSent &&
+      /company\s+profile|company['’]?s\s+profile|share\s+(?:the\s+)?profile/i.test(
+        aiResponse
+      )
+    ) {
+      const attachment = await getCompanyProfileAttachment();
+      if (attachment) {
+        try {
+          await sendWhatsAppMedia(
+            phone,
+            "document",
+            attachment.url,
+            undefined,
+            attachment.filename
+          );
+          await supabase.from("messages").insert({
+            conversation_id: conversation.id,
+            role: "assistant",
+            content: "",
+            media_url: attachment.url,
+            media_type: "document",
+          });
+        } catch (err) {
+          console.error("Failed to auto-send company profile:", err);
+        }
+      }
+    }
 
     // Update conversation timestamp again
     await supabase

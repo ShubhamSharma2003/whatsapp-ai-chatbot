@@ -38,6 +38,38 @@ export interface DirectFormConfig {
   messages: DirectFormMessage[];
 }
 
+export interface CompanyProfileAttachment {
+  url: string;
+  filename: string;
+}
+
+/**
+ * Pull a PDF/document attachment out of the configured direct-form sequence so
+ * AI replies can reuse the same brochure file the form flow ships. Prefers an
+ * explicit media-type entry; falls back to a template's DOCUMENT header.
+ */
+export async function getCompanyProfileAttachment(): Promise<CompanyProfileAttachment | null> {
+  const cfg = await getDirectFormConfig();
+  if (!cfg) return null;
+  for (const m of cfg.messages) {
+    if (m.type === "media" && m.url) {
+      const isDoc = m.mime
+        ? !m.mime.startsWith("image/") && !m.mime.startsWith("video/") && !m.mime.startsWith("audio/")
+        : m.filename?.toLowerCase().endsWith(".pdf") ?? false;
+      if (isDoc) {
+        return { url: m.url, filename: m.filename || "profile.pdf" };
+      }
+    }
+    if (m.type === "template" && m.header_media_type === "document" && m.header_image_url) {
+      return {
+        url: m.header_image_url,
+        filename: m.header_filename || "profile.pdf",
+      };
+    }
+  }
+  return null;
+}
+
 export async function getDirectFormConfig(): Promise<DirectFormConfig | null> {
   const { data } = await supabase
     .from("settings")
