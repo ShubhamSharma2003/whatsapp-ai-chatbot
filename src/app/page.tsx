@@ -227,19 +227,23 @@ export default function Dashboard() {
     return phone.slice(-2);
   }
 
-  function sourceTone(type: "campaign" | "iq_setter" | "direct") {
+  type SourceType = "campaign" | "iq_setter" | "direct" | "website";
+
+  function sourceTone(type: SourceType) {
     if (type === "campaign") return { bg: "var(--violet-soft)", ink: "var(--violet-deep)", border: "var(--violet)" };
     if (type === "iq_setter") return { bg: "var(--sapphire-soft)", ink: "var(--sapphire-deep)", border: "var(--sapphire)" };
+    if (type === "website") return { bg: "var(--emerald-soft)", ink: "var(--emerald-deep)", border: "var(--emerald)" };
     return { bg: "var(--surface-2)", ink: "var(--muted)", border: "var(--line)" };
   }
 
-  function sourceTypeLabel(type: "campaign" | "iq_setter" | "direct") {
+  function sourceTypeLabel(type: SourceType) {
     if (type === "campaign") return "Campaign";
     if (type === "iq_setter") return "IQ Setter";
+    if (type === "website") return "Website";
     return "Direct";
   }
 
-  function sourceIcon(type: "campaign" | "iq_setter" | "direct") {
+  function sourceIcon(type: SourceType) {
     if (type === "campaign") {
       return (
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -253,6 +257,15 @@ export default function Dashboard() {
           <circle cx="12" cy="12" r="10" />
           <circle cx="12" cy="12" r="6" />
           <circle cx="12" cy="12" r="2" />
+        </svg>
+      );
+    }
+    if (type === "website") {
+      return (
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="2" y1="12" x2="22" y2="12" />
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
         </svg>
       );
     }

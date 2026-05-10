@@ -131,6 +131,15 @@ export async function GET() {
         received_at: camp?.created_at ?? convo.created_at,
       };
     }
+    if (convo.source_type === "website") {
+      return {
+        type: "website",
+        label: "Website",
+        secondary: null,
+        template: null,
+        received_at: convo.created_at,
+      };
+    }
     return {
       type: "direct",
       label: "Direct",

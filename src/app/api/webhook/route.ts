@@ -20,6 +20,11 @@ const OPT_OUT_KEYWORDS = new Set([
 const OPT_OUT_CONFIRMATION =
   "You've been unsubscribed and will no longer receive messages from us.";
 
+// Marker baked into the website's floating WhatsApp-button prefill text.
+// First inbound message containing this token tags the convo as 'website'.
+// Stripped from the stored copy + AI history so the AI never replies about it.
+const WEBSITE_MARKER_RE = /\s*\[#WEB\]\s*/gi;
+
 function isOptOutKeyword(raw: string): boolean {
   const normalized = raw.trim().toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "");
   return OPT_OUT_KEYWORDS.has(normalized);
@@ -142,6 +147,19 @@ export async function POST(request: NextRequest) {
     return Response.json({ status: "empty_message" });
   }
 
+  // Detect website-button marker before storing so it never reaches the AI
+  // history and never appears in the dashboard transcript.
+  const hasWebsiteMarker =
+    !isButtonReply && text.toUpperCase().includes("[#WEB]");
+  if (hasWebsiteMarker) {
+    text = text.replace(WEBSITE_MARKER_RE, " ").replace(/\s{2,}/g, " ").trim();
+    if (!text) {
+      // Marker was the only content — keep a neutral placeholder so the user
+      // message row still exists and history makes sense.
+      text = "Hi";
+    }
+  }
+
   try {
     // ─── Look up context recipient FIRST so a new conversation can be
     //     tagged with its source origin at insert time ───
@@ -167,12 +185,16 @@ export async function POST(request: NextRequest) {
       .eq("phone", phone)
       .single();
 
-    let convoSourceType: "campaign" | "direct" | null = null;
+    let convoSourceType: "campaign" | "direct" | "website" | null = null;
     if (!conversation) {
-      const sourceType = repliedToCampaignId ? "campaign" : "direct";
+      const sourceType: "campaign" | "direct" | "website" = repliedToCampaignId
+        ? "campaign"
+        : hasWebsiteMarker
+        ? "website"
+        : "direct";
       convoSourceType = sourceType;
       // Campaign-originated chats always start in agent mode (button reply will
-      // route through AI). Direct inbound respects the global default.
+      // route through AI). Direct/website inbound respects the global default.
       const initialMode = repliedToCampaignId
         ? "agent"
         : await getDefaultConversationMode();
@@ -192,11 +214,22 @@ export async function POST(request: NextRequest) {
         return Response.json({ error: insertConvoError.message }, { status: 500 });
       }
       conversation = newConvo;
-    } else if (name && name !== conversation.name) {
-      await supabase
-        .from("conversations")
-        .update({ name })
-        .eq("id", conversation.id);
+    } else {
+      // Existing conversation: backfill name + upgrade direct→website when the
+      // marker arrives on a follow-up (returning visitor who clicked the
+      // website button after a prior organic chat).
+      const updates: Record<string, unknown> = {};
+      if (name && name !== conversation.name) updates.name = name;
+      if (hasWebsiteMarker && conversation.source_type === "direct") {
+        updates.source_type = "website";
+        conversation.source_type = "website";
+      }
+      if (Object.keys(updates).length > 0) {
+        await supabase
+          .from("conversations")
+          .update(updates)
+          .eq("id", conversation.id);
+      }
     }
 
     if (!conversation) {
@@ -285,24 +318,29 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Direct-form welcome sequence ───
-    // Fires once per direct-source conversation whose inbound message contains
-    // the configured trigger phrase (Meta lead-form preamble). The
-    // `direct_form_template_sent_at` stamp is the idempotency gate — set on
-    // first send, never sent twice. We don't gate on isNewConvo because real
-    // CTWA flows can prefix a "Hi" tap before the form text arrives.
+    // Fires once per direct- or website-source conversation. For 'direct'
+    // (Meta lead-form preamble) the configured trigger phrase must match.
+    // For 'website' (floating WA-button click) the [#WEB] marker is the
+    // trigger — checked at the top of this handler — so phrase match is
+    // skipped. The `direct_form_template_sent_at` stamp is the idempotency
+    // gate. Not gated on isNewConvo because CTWA flows can prefix a "Hi" tap
+    // before the form text arrives.
     const convoIsDirect =
       convoSourceType === "direct" || conversation.source_type === "direct";
+    const convoIsWebsite =
+      convoSourceType === "website" || conversation.source_type === "website";
     if (
-      convoIsDirect &&
+      (convoIsDirect || convoIsWebsite) &&
       !isButtonReply &&
       !conversation.direct_form_template_sent_at
     ) {
       const cfg = await getDirectFormConfig();
-      if (
-        cfg?.enabled &&
-        cfg.messages.length > 0 &&
-        matchesDirectFormPhrase(text, cfg.phrase)
-      ) {
+      const phraseOk = convoIsWebsite
+        ? hasWebsiteMarker
+        : cfg
+        ? matchesDirectFormPhrase(text, cfg.phrase)
+        : false;
+      if (cfg?.enabled && cfg.messages.length > 0 && phraseOk) {
         await runDirectFormSequence({
           phone,
           name,

@@ -1,4 +1,4 @@
-export type ConversationSourceType = "campaign" | "iq_setter" | "direct";
+export type ConversationSourceType = "campaign" | "iq_setter" | "direct" | "website";
 
 export interface ConversationSource {
   type: ConversationSourceType;
