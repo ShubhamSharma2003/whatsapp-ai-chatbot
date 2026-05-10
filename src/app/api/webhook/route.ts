@@ -20,10 +20,20 @@ const OPT_OUT_KEYWORDS = new Set([
 const OPT_OUT_CONFIRMATION =
   "You've been unsubscribed and will no longer receive messages from us.";
 
-// Marker baked into the website's floating WhatsApp-button prefill text.
-// First inbound message containing this token tags the convo as 'website'.
-// Stripped from the stored copy + AI history so the AI never replies about it.
-const WEBSITE_MARKER_RE = /\s*\[#WEB\]\s*/gi;
+// Phrase baked into the website's floating WhatsApp-button prefill text.
+// First inbound message containing this exact phrase tags the convo as
+// 'website'. Phrase IS the message content, so it is NOT stripped — the AI
+// sees it as a normal greeting and replies accordingly.
+const WEBSITE_BUTTON_PHRASE =
+  "Hi! I'm interested in a property. Could you please help me?";
+
+function normalizeForMarker(s: string): string {
+  return s.toLowerCase().replace(/[\s​]+/g, " ").trim();
+}
+
+function hasWebsiteButtonPhrase(text: string): boolean {
+  return normalizeForMarker(text).includes(normalizeForMarker(WEBSITE_BUTTON_PHRASE));
+}
 
 function isOptOutKeyword(raw: string): boolean {
   const normalized = raw.trim().toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "");
@@ -147,18 +157,10 @@ export async function POST(request: NextRequest) {
     return Response.json({ status: "empty_message" });
   }
 
-  // Detect website-button marker before storing so it never reaches the AI
-  // history and never appears in the dashboard transcript.
-  const hasWebsiteMarker =
-    !isButtonReply && text.toUpperCase().includes("[#WEB]");
-  if (hasWebsiteMarker) {
-    text = text.replace(WEBSITE_MARKER_RE, " ").replace(/\s{2,}/g, " ").trim();
-    if (!text) {
-      // Marker was the only content — keep a neutral placeholder so the user
-      // message row still exists and history makes sense.
-      text = "Hi";
-    }
-  }
+  // Website button prefills its full phrase as the message body — match it
+  // directly. No stripping: the phrase IS the user's question, so it stays
+  // in storage and AI history as the opening turn.
+  const hasWebsiteMarker = !isButtonReply && hasWebsiteButtonPhrase(text);
 
   try {
     // ─── Look up context recipient FIRST so a new conversation can be
@@ -329,6 +331,7 @@ export async function POST(request: NextRequest) {
       convoSourceType === "direct" || conversation.source_type === "direct";
     const convoIsWebsite =
       convoSourceType === "website" || conversation.source_type === "website";
+    let directFormJustFired = false;
     if (
       (convoIsDirect || convoIsWebsite) &&
       !isButtonReply &&
@@ -354,6 +357,7 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString(),
           })
           .eq("id", conversation.id);
+        directFormJustFired = true;
       }
     }
 
@@ -376,6 +380,13 @@ export async function POST(request: NextRequest) {
 
     if (!shouldAutoReply) {
       return Response.json({ status: "stored_for_human" });
+    }
+
+    // Skip AI for this turn when the direct-form welcome sequence already
+    // sent the lead a template + brochure. The next inbound message picks up
+    // AI as normal.
+    if (directFormJustFired) {
+      return Response.json({ status: "direct_form_sent" });
     }
 
     // Fetch conversation history with media flags so we can detect prior brochure sends
