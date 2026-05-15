@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SidebarNav, { MobileNavToggle } from "@/components/ui/SidebarNav";
 import { Orbit, Skeleton } from "@/components/ui/Loaders";
 
@@ -8,6 +8,33 @@ type BodyParamSpec =
   | { type: "name" }
   | { type: "body_text" }
   | { type: "literal"; value: string };
+
+type WaTemplateComponent = {
+  type: string;
+  format?: string;
+  text?: string;
+};
+
+type WaTemplate = {
+  id: string;
+  name: string;
+  status: string;
+  language: string;
+  category: string;
+  components: WaTemplateComponent[];
+};
+
+function getTemplateHeaderFormat(
+  t: WaTemplate | null
+): "IMAGE" | "DOCUMENT" | "VIDEO" | null {
+  const fmt = t?.components?.find((c) => c.type === "HEADER")?.format;
+  if (fmt === "IMAGE" || fmt === "DOCUMENT" || fmt === "VIDEO") return fmt;
+  return null;
+}
+
+function getTemplateBodyText(t: WaTemplate | null): string {
+  return t?.components?.find((c) => c.type === "BODY")?.text || "";
+}
 
 type LeadTypeTemplate = {
   id: string;
@@ -61,6 +88,8 @@ export default function LeadTypesPage() {
   const [brochureUploading, setBrochureUploading] = useState(false);
   const headerInputRef = useRef<HTMLInputElement>(null);
   const brochureInputRef = useRef<HTMLInputElement>(null);
+  const [templates, setTemplates] = useState<WaTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -70,9 +99,56 @@ export default function LeadTypesPage() {
     setLoading(false);
   }, []);
 
+  const fetchTemplates = useCallback(async () => {
+    setLoadingTemplates(true);
+    const res = await fetch("/api/campaigns/templates");
+    const data = await res.json();
+    setTemplates(Array.isArray(data) ? data : []);
+    setLoadingTemplates(false);
+  }, []);
+
   useEffect(() => {
     fetchItems();
-  }, [fetchItems]);
+    fetchTemplates();
+  }, [fetchItems, fetchTemplates]);
+
+  // Resolve the currently-selected approved template by name+language so the
+  // header-upload control can show the right accept type and the body text
+  // can be pre-filled when the user picks from the dropdown.
+  const selectedTemplate = useMemo<WaTemplate | null>(() => {
+    if (!form.template_name) return null;
+    return (
+      templates.find(
+        (t) =>
+          t.name === form.template_name &&
+          t.language === (form.template_language || "en")
+      ) ??
+      templates.find((t) => t.name === form.template_name) ??
+      null
+    );
+  }, [templates, form.template_name, form.template_language]);
+
+  const selectedHeaderFormat = getTemplateHeaderFormat(selectedTemplate);
+
+  function pickTemplate(name: string) {
+    if (!name) {
+      setForm((p) => ({
+        ...p,
+        template_name: "",
+        template_header_image_url: "",
+      }));
+      return;
+    }
+    const t = templates.find((x) => x.name === name);
+    if (!t) return;
+    setForm((p) => ({
+      ...p,
+      template_name: t.name,
+      template_language: t.language,
+      template_body_text: getTemplateBodyText(t) || p.template_body_text,
+      template_header_image_url: "",
+    }));
+  }
 
   function startCreate() {
     setForm(EMPTY_FORM);
@@ -119,10 +195,17 @@ export default function LeadTypesPage() {
     setHeaderUploading(true);
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch("/api/campaigns/upload-image", { method: "POST", body: fd });
+    // Reuse the direct-form attachment bucket — it accepts any file type
+    // (PDF, video, image) and returns url+mime+filename in one shot.
+    const res = await fetch("/api/settings/upload-direct-attachment", {
+      method: "POST",
+      body: fd,
+    });
     const data = await res.json();
     setHeaderUploading(false);
-    if (data.url) setForm((p) => ({ ...p, template_header_image_url: data.url }));
+    if (data.url) {
+      setForm((p) => ({ ...p, template_header_image_url: data.url }));
+    }
   }
 
   async function handleBrochureUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -435,55 +518,87 @@ export default function LeadTypesPage() {
               </Section>
 
               <Section title="Welcome template" desc="Meta-approved template sent first.">
-                <Field label="Template name">
-                  <input
-                    type="text"
-                    value={form.template_name}
-                    onChange={(e) => setForm((p) => ({ ...p, template_name: e.target.value }))}
-                    placeholder="order_tracking_link_bi"
-                    className="input font-mono"
-                  />
-                </Field>
-                <Field label="Language">
-                  <input
-                    type="text"
-                    value={form.template_language}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, template_language: e.target.value }))
-                    }
-                    placeholder="en"
-                    className="input font-mono"
-                  />
-                </Field>
-                <Field label="Header image URL">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={form.template_header_image_url ?? ""}
-                      onChange={(e) =>
-                        setForm((p) => ({
-                          ...p,
-                          template_header_image_url: e.target.value,
-                        }))
-                      }
-                      placeholder="https://…"
-                      className="input flex-1"
-                    />
-                    <button
-                      onClick={() => headerInputRef.current?.click()}
-                      className="px-3 py-2 rounded-md border border-line text-[12px] text-muted hover:text-ink hover:bg-hover whitespace-nowrap"
+                <Field label="Template">
+                  {loadingTemplates ? (
+                    <p className="text-[12.5px] text-muted py-2">Loading approved templates…</p>
+                  ) : templates.length === 0 ? (
+                    <p className="text-[12.5px] text-muted py-2">
+                      No approved templates found. Approve a template in Meta first.
+                    </p>
+                  ) : (
+                    <select
+                      value={form.template_name}
+                      onChange={(e) => pickTemplate(e.target.value)}
+                      className="input font-mono"
                     >
-                      {headerUploading ? "Uploading…" : "Upload"}
-                    </button>
-                    <input
-                      ref={headerInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleHeaderUpload}
-                    />
-                  </div>
+                      <option value="">— Select template —</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.name}>
+                          {t.name} ({t.language}) — {t.category}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </Field>
+                {selectedTemplate && selectedHeaderFormat && (
+                  <Field
+                    label={
+                      selectedHeaderFormat === "IMAGE"
+                        ? "Header image"
+                        : selectedHeaderFormat === "VIDEO"
+                        ? "Header video"
+                        : "Header PDF"
+                    }
+                    hint={`Template requires a ${selectedHeaderFormat} header. Upload from your system.`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => headerInputRef.current?.click()}
+                        className="px-3 py-2 rounded-md border border-line text-[12px] text-muted hover:text-ink hover:bg-hover whitespace-nowrap"
+                      >
+                        {headerUploading
+                          ? "Uploading…"
+                          : form.template_header_image_url
+                          ? "Replace"
+                          : "Upload"}
+                      </button>
+                      {form.template_header_image_url && (
+                        <a
+                          href={form.template_header_image_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[12px] text-muted hover:text-ink truncate max-w-xs"
+                        >
+                          {form.template_header_image_url.split("/").pop()}
+                        </a>
+                      )}
+                      {form.template_header_image_url && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((p) => ({ ...p, template_header_image_url: "" }))
+                          }
+                          className="text-[12px] text-muted hover:text-danger"
+                        >
+                          Remove
+                        </button>
+                      )}
+                      <input
+                        ref={headerInputRef}
+                        type="file"
+                        accept={
+                          selectedHeaderFormat === "IMAGE"
+                            ? "image/*"
+                            : selectedHeaderFormat === "VIDEO"
+                            ? "video/*"
+                            : "application/pdf,.pdf"
+                        }
+                        className="hidden"
+                        onChange={handleHeaderUpload}
+                      />
+                    </div>
+                  </Field>
+                )}
                 <Field label="Body text">
                   <textarea
                     value={form.template_body_text}

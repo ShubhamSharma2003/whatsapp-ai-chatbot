@@ -12,6 +12,7 @@ import {
   resolveLeadTypeTemplate,
   resolveTemplateBodyParams,
 } from "@/lib/lead-types";
+import { getDirectFormConfig, runDirectFormSequence } from "@/lib/direct-form";
 
 const REQUIRED_FIELDS = ["lead_id", "phone", "name", "lead_source", "lead_type"] as const;
 
@@ -179,7 +180,52 @@ export async function POST(request: NextRequest) {
       .eq("id", lead.id);
   }
 
-  // ─── Send sequence: template → brochure → extra info ───
+  // ─── Direct-form takeover ───
+  // If the global Direct-form sequence is enabled, use it for IQ Setter leads
+  // too (treated as default reply across Facebook/web/other sources). Falls
+  // through to the lead-type-template flow below when not configured.
+  const directFormCfg = await getDirectFormConfig();
+  if (
+    conversationId &&
+    directFormCfg?.enabled &&
+    directFormCfg.messages.length > 0
+  ) {
+    const dfResult = await runDirectFormSequence({
+      phone,
+      name,
+      conversationId,
+      messages: directFormCfg.messages,
+    });
+    await supabase
+      .from("conversations")
+      .update({
+        direct_form_template_sent_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", conversationId);
+    const status = dfResult.errors.length === 0 ? "template_sent" : "partial";
+    await supabase
+      .from("leads")
+      .update({
+        status,
+        template_sent: directFormCfg.messages.find((m) => m.type === "template")
+          ?.template_name ?? null,
+        error: dfResult.errors.length ? dfResult.errors.join(" | ") : null,
+      })
+      .eq("id", lead.id);
+
+    return Response.json({
+      success: true,
+      message: "Lead received",
+      template_used: "direct_form",
+      sent: {
+        directFormSent: dfResult.sentCount,
+        errors: dfResult.errors,
+      },
+    });
+  }
+
+  // ─── Fallback: legacy lead-type send sequence: template → brochure → extra info ───
   const cleanName = sanitizeName(name);
   const sendResults = {
     templateSent: false,
