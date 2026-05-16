@@ -36,10 +36,14 @@ const SELECT_COLS =
 export async function resolveLeadTypeTemplate(
   leadType: string
 ): Promise<LeadTypeTemplate | null> {
+  // Case-insensitive exact match: ilike with wildcard chars escaped so values
+  // like "LS_DUPLEX" don't overmatch. Lets the IQ Setter feed match a
+  // configured slug even if casing differs.
+  const safe = leadType.replace(/([\\%_])/g, "\\$1");
   const { data: exact } = await supabase
     .from("lead_type_templates")
     .select(SELECT_COLS)
-    .eq("lead_type", leadType)
+    .ilike("lead_type", safe)
     .eq("enabled", true)
     .maybeSingle();
   if (exact) return exact as LeadTypeTemplate;
@@ -106,12 +110,16 @@ export function mediaTypeFromMime(
 }
 
 /**
- * Validate + normalize a lead_type slug.
- * Allowed: lowercase letters, digits, underscores, hyphens. 1-64 chars.
+ * Validate + normalize a lead_type identifier.
+ * Accepts the upstream IQ Setter feed values verbatim — these are often
+ * human-readable strings like "GODREJ GCR LS" or "DLF FLOORS LS- DUPLEX".
+ * Whitespace is collapsed to single spaces and trimmed. Length 1-64.
+ * Match against incoming `lead_type` is case-insensitive at lookup time.
  */
 export function normalizeLeadType(raw: string): string | null {
-  const trimmed = raw.trim().toLowerCase();
-  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(trimmed)) return null;
+  const trimmed = raw.replace(/\s+/g, " ").trim();
+  if (trimmed.length < 1 || trimmed.length > 64) return null;
+  if (!/^[A-Za-z0-9 _\-]+$/.test(trimmed)) return null;
   return trimmed;
 }
 

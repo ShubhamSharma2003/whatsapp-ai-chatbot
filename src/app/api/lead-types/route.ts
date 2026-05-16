@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Invalid lead_type. Use lowercase letters, digits, _, - (1-64 chars).",
+          "Invalid lead_type. Use letters, digits, spaces, _, - (1-64 chars).",
       },
       { status: 400 }
     );
