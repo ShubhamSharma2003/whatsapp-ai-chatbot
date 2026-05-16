@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import SidebarNav, { MobileNavToggle } from "@/components/ui/SidebarNav";
 import { Orbit, Dots } from "@/components/ui/Loaders";
 
-type Tab = "prompt" | "ai" | "behavior" | "calling" | "direct-form";
+type Tab = "prompt" | "ai" | "behavior" | "calling" | "direct-form" | "iq-default";
 
 type DirectFormMessage =
   | {
@@ -41,6 +41,7 @@ type Settings = {
   direct_form_trigger_enabled: boolean;
   direct_form_trigger_phrase: string;
   direct_form_messages: DirectFormMessage[];
+  iq_default_messages: DirectFormMessage[];
 };
 
 type CallSettings = {
@@ -63,6 +64,7 @@ const TABS: { id: Tab; label: string; description: string; color: string }[] = [
   { id: "behavior", label: "Behaviour", description: "Reply policy", color: "var(--sapphire)" },
   { id: "calling", label: "Calling", description: "VAPI keys", color: "var(--coral)" },
   { id: "direct-form", label: "Direct form", description: "Lead-form auto-reply", color: "var(--warn)" },
+  { id: "iq-default", label: "IQ default", description: "Fallback for unmatched IQ Setter leads", color: "var(--sapphire)" },
 ];
 
 export default function SettingsPage() {
@@ -593,6 +595,15 @@ export default function SettingsPage() {
                 }
               />
             )}
+
+            {tab === "iq-default" && (
+              <IqDefaultPanel
+                draft={draft}
+                onChange={(patch) =>
+                  setDraft((prev) => (prev ? { ...prev, ...patch } : prev))
+                }
+              />
+            )}
           </div>
         </div>
       </div>
@@ -765,6 +776,106 @@ function getTemplatePlaceholders(t: WaTemplate | null): string[] {
   const matches = body.match(/\{\{(\d+)\}\}/g) || [];
   return [...new Set(matches.map((m) => m.replace(/\{\{|\}\}/g, "")))].sort(
     (a, b) => Number(a) - Number(b)
+  );
+}
+
+function IqDefaultPanel({
+  draft,
+  onChange,
+}: {
+  draft: Settings;
+  onChange: (patch: Partial<Settings>) => void;
+}) {
+  const messages = draft.iq_default_messages ?? [];
+  const [templates, setTemplates] = useState<WaTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  useEffect(() => {
+    setLoadingTemplates(true);
+    fetch("/api/campaigns/templates")
+      .then((r) => r.json())
+      .then((d) => setTemplates(Array.isArray(d) ? d : []))
+      .catch(() => setTemplates([]))
+      .finally(() => setLoadingTemplates(false));
+  }, []);
+
+  function update(idx: number, patch: Partial<DirectFormMessage>) {
+    const next = messages.map((m, i) =>
+      i === idx ? ({ ...m, ...patch } as DirectFormMessage) : m
+    );
+    onChange({ iq_default_messages: next });
+  }
+
+  function remove(idx: number) {
+    onChange({ iq_default_messages: messages.filter((_, i) => i !== idx) });
+  }
+
+  function move(idx: number, dir: -1 | 1) {
+    const j = idx + dir;
+    if (j < 0 || j >= messages.length) return;
+    const next = messages.slice();
+    [next[idx], next[j]] = [next[j], next[idx]];
+    onChange({ iq_default_messages: next });
+  }
+
+  function add(type: DirectFormMessage["type"]) {
+    let item: DirectFormMessage;
+    if (type === "template") {
+      item = {
+        type: "template",
+        template_name: "",
+        template_language: "en",
+        header_image_url: null,
+        body_text: "",
+        body_params: [],
+      };
+    } else if (type === "text") {
+      item = { type: "text", text: "" };
+    } else {
+      item = { type: "media", url: "", mime: null, filename: null, caption: null };
+    }
+    onChange({ iq_default_messages: [...messages, item] });
+  }
+
+  return (
+    <>
+      <Section
+        title="IQ Setter default reply"
+        description="Sent when an incoming IQ Setter lead has no matching lead_type config (or that config opts into fallback). Prefer a single template with an embedded media header — cold leads have no open 24h window, so freeform follow-up messages will be silently dropped by Meta."
+      >
+        <div className="space-y-3">
+          {messages.length === 0 && (
+            <p className="text-[12.5px] text-muted italic">
+              No fallback messages configured. Unmatched leads will fall through to direct-form messages (if any), then to legacy hardcoded constants.
+            </p>
+          )}
+          {messages.map((msg, idx) => (
+            <DirectFormMessageEditor
+              key={idx}
+              index={idx}
+              total={messages.length}
+              message={msg}
+              onChange={(patch) => update(idx, patch)}
+              onRemove={() => remove(idx)}
+              onMove={(dir) => move(idx, dir)}
+              templates={templates}
+              loadingTemplates={loadingTemplates}
+            />
+          ))}
+        </div>
+        <div className="mt-5 pt-5 border-t border-line flex flex-wrap gap-2">
+          <button onClick={() => add("template")} className="btn-ghost text-[12.5px]">
+            + Template
+          </button>
+          <button onClick={() => add("text")} className="btn-ghost text-[12.5px]">
+            + Text
+          </button>
+          <button onClick={() => add("media")} className="btn-ghost text-[12.5px]">
+            + Attachment
+          </button>
+        </div>
+      </Section>
+    </>
   );
 }
 

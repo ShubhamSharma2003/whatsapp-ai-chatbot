@@ -12,7 +12,11 @@ import {
   resolveLeadTypeTemplate,
   resolveTemplateBodyParams,
 } from "@/lib/lead-types";
-import { getDirectFormConfig, runDirectFormSequence } from "@/lib/direct-form";
+import {
+  getDirectFormConfig,
+  getIqDefaultMessages,
+  runDirectFormSequence,
+} from "@/lib/direct-form";
 
 const REQUIRED_FIELDS = ["lead_id", "phone", "name", "lead_source", "lead_type"] as const;
 
@@ -183,20 +187,30 @@ export async function POST(request: NextRequest) {
   // ─── Reply strategy ───
   // Each matched lead_type config carries a `reply_strategy` flag:
   //   'lead_type'   → send its own welcome template/brochure/extra_info.
-  //   'direct_form' → defer to the global direct-form sequence.
-  // No matched config (or default fallback also missing) → direct-form when
-  // configured, else legacy hardcoded fallback below.
-  const directFormCfg = await getDirectFormConfig();
-  const useDirectForm =
-    !!directFormCfg?.enabled &&
-    directFormCfg.messages.length > 0 &&
-    (!tpl || tpl.reply_strategy === "direct_form");
-  if (conversationId && useDirectForm) {
+  //   'direct_form' → defer to the IQ Setter default sequence (then global
+  //                   direct-form as a second fallback).
+  // No matched config → IQ default → direct-form → legacy hardcoded below.
+  // IQ default is preferred over direct-form because cold Facebook leads have
+  // no open 24h window — direct-form's multi-message attachment style fails
+  // silently while a single template with embedded media header delivers.
+  const wantsFallback = !tpl || tpl.reply_strategy === "direct_form";
+  const iqDefaultMessages = wantsFallback ? await getIqDefaultMessages() : [];
+  const directFormCfg = wantsFallback ? await getDirectFormConfig() : null;
+  const fallbackMessages =
+    iqDefaultMessages.length > 0
+      ? iqDefaultMessages
+      : directFormCfg?.enabled && directFormCfg.messages.length > 0
+      ? directFormCfg.messages
+      : null;
+  const fallbackSource =
+    iqDefaultMessages.length > 0 ? "iq_default" : "direct_form";
+
+  if (conversationId && wantsFallback && fallbackMessages) {
     const dfResult = await runDirectFormSequence({
       phone,
       name,
       conversationId,
-      messages: directFormCfg.messages,
+      messages: fallbackMessages,
     });
     await supabase
       .from("conversations")
@@ -210,8 +224,9 @@ export async function POST(request: NextRequest) {
       .from("leads")
       .update({
         status,
-        template_sent: directFormCfg.messages.find((m) => m.type === "template")
-          ?.template_name ?? null,
+        template_sent:
+          fallbackMessages.find((m) => m.type === "template")?.template_name ??
+          null,
         error: dfResult.errors.length ? dfResult.errors.join(" | ") : null,
       })
       .eq("id", lead.id);
@@ -219,7 +234,7 @@ export async function POST(request: NextRequest) {
     return Response.json({
       success: true,
       message: "Lead received",
-      template_used: "direct_form",
+      template_used: fallbackSource,
       sent: {
         directFormSent: dfResult.sentCount,
         errors: dfResult.errors,

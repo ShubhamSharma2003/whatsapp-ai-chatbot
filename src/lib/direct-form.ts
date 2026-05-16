@@ -70,6 +70,20 @@ export async function getCompanyProfileAttachment(): Promise<CompanyProfileAttac
   return null;
 }
 
+/**
+ * IQ Setter default reply messages — sent when no lead_type_templates row
+ * matches the incoming lead. Same shape as direct_form_messages so the same
+ * runDirectFormSequence executor can ship it. Stored in settings.iq_default_messages.
+ */
+export async function getIqDefaultMessages(): Promise<DirectFormMessage[]> {
+  const { data } = await supabase
+    .from("settings")
+    .select("iq_default_messages")
+    .eq("id", 1)
+    .maybeSingle();
+  return (data?.iq_default_messages as DirectFormMessage[] | null) ?? [];
+}
+
 export async function getDirectFormConfig(): Promise<DirectFormConfig | null> {
   const { data } = await supabase
     .from("settings")
