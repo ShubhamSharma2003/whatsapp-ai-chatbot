@@ -5,12 +5,15 @@ export type BodyParamSpec =
   | { type: "body_text" }
   | { type: "literal"; value: string };
 
+export type LeadTypeReplyStrategy = "lead_type" | "direct_form";
+
 export interface LeadTypeTemplate {
   id: string;
   lead_type: string;
   display_name: string;
   enabled: boolean;
   is_default: boolean;
+  reply_strategy: LeadTypeReplyStrategy;
   template_name: string;
   template_language: string;
   template_header_image_url: string | null;
@@ -27,7 +30,7 @@ export interface LeadTypeTemplate {
 }
 
 const SELECT_COLS =
-  "id, lead_type, display_name, enabled, is_default, template_name, template_language, template_header_image_url, template_body_text, template_body_params, brochure_url, brochure_filename, brochure_mime, brochure_caption, extra_info_text, system_prompt, created_at, updated_at";
+  "id, lead_type, display_name, enabled, is_default, reply_strategy, template_name, template_language, template_header_image_url, template_body_text, template_body_params, brochure_url, brochure_filename, brochure_mime, brochure_caption, extra_info_text, system_prompt, created_at, updated_at";
 
 /**
  * Resolve lead-type config: exact match → default fallback → null.

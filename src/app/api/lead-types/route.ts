@@ -56,6 +56,9 @@ export async function POST(request: NextRequest) {
       .eq("is_default", true);
   }
 
+  const replyStrategy =
+    body.reply_strategy === "direct_form" ? "direct_form" : "lead_type";
+
   const { data, error } = await admin
     .from("lead_type_templates")
     .insert({
@@ -63,6 +66,7 @@ export async function POST(request: NextRequest) {
       display_name: body.display_name,
       enabled: body.enabled ?? true,
       is_default: body.is_default ?? false,
+      reply_strategy: replyStrategy,
       template_name: body.template_name,
       template_language: body.template_language || "en",
       template_header_image_url: body.template_header_image_url || null,

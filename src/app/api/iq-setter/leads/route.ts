@@ -180,16 +180,18 @@ export async function POST(request: NextRequest) {
       .eq("id", lead.id);
   }
 
-  // ─── Direct-form takeover ───
-  // If the global Direct-form sequence is enabled, use it for IQ Setter leads
-  // too (treated as default reply across Facebook/web/other sources). Falls
-  // through to the lead-type-template flow below when not configured.
+  // ─── Reply strategy ───
+  // Each matched lead_type config carries a `reply_strategy` flag:
+  //   'lead_type'   → send its own welcome template/brochure/extra_info.
+  //   'direct_form' → defer to the global direct-form sequence.
+  // No matched config (or default fallback also missing) → direct-form when
+  // configured, else legacy hardcoded fallback below.
   const directFormCfg = await getDirectFormConfig();
-  if (
-    conversationId &&
-    directFormCfg?.enabled &&
-    directFormCfg.messages.length > 0
-  ) {
+  const useDirectForm =
+    !!directFormCfg?.enabled &&
+    directFormCfg.messages.length > 0 &&
+    (!tpl || tpl.reply_strategy === "direct_form");
+  if (conversationId && useDirectForm) {
     const dfResult = await runDirectFormSequence({
       phone,
       name,

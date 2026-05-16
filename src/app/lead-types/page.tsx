@@ -36,12 +36,15 @@ function getTemplateBodyText(t: WaTemplate | null): string {
   return t?.components?.find((c) => c.type === "BODY")?.text || "";
 }
 
+type ReplyStrategy = "lead_type" | "direct_form";
+
 type LeadTypeTemplate = {
   id: string;
   lead_type: string;
   display_name: string;
   enabled: boolean;
   is_default: boolean;
+  reply_strategy: ReplyStrategy;
   template_name: string;
   template_language: string;
   template_header_image_url: string | null;
@@ -62,6 +65,7 @@ const EMPTY_FORM: Omit<LeadTypeTemplate, "id" | "created_at" | "updated_at"> = {
   display_name: "",
   enabled: true,
   is_default: false,
+  reply_strategy: "lead_type",
   template_name: "",
   template_language: "en",
   template_header_image_url: "",
@@ -163,6 +167,7 @@ export default function LeadTypesPage() {
       display_name: item.display_name,
       enabled: item.enabled,
       is_default: item.is_default,
+      reply_strategy: item.reply_strategy ?? "lead_type",
       template_name: item.template_name,
       template_language: item.template_language,
       template_header_image_url: item.template_header_image_url ?? "",
@@ -515,6 +520,24 @@ export default function LeadTypesPage() {
                     onChange={(v) => setForm((p) => ({ ...p, is_default: v }))}
                   />
                 </div>
+                <Field
+                  label="Reply strategy"
+                  hint="Choose whether to send this row's template or defer to the global direct-form sequence."
+                >
+                  <select
+                    value={form.reply_strategy}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        reply_strategy: e.target.value as ReplyStrategy,
+                      }))
+                    }
+                    className="input"
+                  >
+                    <option value="lead_type">Use this lead-type template</option>
+                    <option value="direct_form">Use global direct-form sequence</option>
+                  </select>
+                </Field>
               </Section>
 
               <Section title="Welcome template" desc="Meta-approved template sent first.">

@@ -9,6 +9,7 @@ const UPDATABLE_FIELDS = [
   "display_name",
   "enabled",
   "is_default",
+  "reply_strategy",
   "template_name",
   "template_language",
   "template_header_image_url",
