@@ -239,8 +239,12 @@ export async function POST(request: NextRequest) {
   // 1. Welcome template
   const templateName = tpl?.template_name ?? FALLBACK_TEMPLATE_NAME;
   const templateLanguage = tpl?.template_language ?? FALLBACK_TEMPLATE_LANGUAGE;
-  const templateHeaderImage =
-    tpl?.template_header_image_url ?? FALLBACK_TEMPLATE_HEADER_IMAGE_URL;
+  // Only use the hardcoded fallback image when we have no tpl row at all.
+  // When tpl exists with header_image_url=null the template has no header
+  // (Meta error 132018 if we attach one anyway).
+  const templateHeaderImage = tpl
+    ? tpl.template_header_image_url
+    : FALLBACK_TEMPLATE_HEADER_IMAGE_URL;
   const templateBodyText = tpl?.template_body_text || FALLBACK_TEMPLATE_BODY_TEXT;
   const templateBodyParams = resolveTemplateBodyParams(tpl?.template_body_params, {
     name: cleanName,
