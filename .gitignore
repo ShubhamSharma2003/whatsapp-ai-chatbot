@@ -45,3 +45,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# SQL migration / schema dumps (schema disclosure)
+*.sql
+supabase-*.sql
+
+# tests (do not ship)
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__/
+vitest.config.ts
+
+# local claude / agent scratch
+.claude/settings.local.json
+claude_code_prompt.md
+
+# editor / OS
+.idea/
+.vscode/
+Thumbs.db
