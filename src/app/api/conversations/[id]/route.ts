@@ -12,9 +12,18 @@ export async function PATCH(
     return Response.json({ error: "Invalid mode" }, { status: 400 });
   }
 
+  const updates: Record<string, unknown> = {};
+  if (body.mode !== undefined) updates.mode = body.mode;
+  if (body.nudges_disabled !== undefined) {
+    updates.nudges_disabled = Boolean(body.nudges_disabled);
+  }
+  if (Object.keys(updates).length === 0) {
+    return Response.json({ error: "No fields to update" }, { status: 400 });
+  }
+
   const { data, error } = await supabase
     .from("conversations")
-    .update({ mode: body.mode })
+    .update(updates)
     .eq("id", id)
     .select()
     .single();

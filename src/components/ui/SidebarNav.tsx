@@ -8,7 +8,7 @@ type Item = {
   href: string;
   label: string;
   icon: React.ReactNode;
-  feature?: "ai_calling" | "lead_types";
+  feature?: "ai_calling" | "lead_types" | "nudges";
   superadminOnly?: boolean;
 };
 
@@ -46,6 +46,16 @@ const ITEMS: Item[] = [
       <>
         <path d="M20 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" />
         <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+      </>
+    ),
+  },
+  {
+    href: "/nudges",
+    label: "Nudges",
+    feature: "nudges",
+    icon: (
+      <>
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
       </>
     ),
   },

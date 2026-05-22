@@ -77,7 +77,81 @@ export type Feature =
   | "settings"
   | "admin"
   | "ai_calling"
-  | "lead_types";
+  | "lead_types"
+  | "nudges";
+
+// --- Nudge System ---
+
+export type NudgeSourceType = "campaign" | "iq_setter" | "direct" | "website";
+export type NudgeTemplateCategory = "UTILITY" | "MARKETING";
+export type NudgeHeaderMediaType = "image" | "document" | "video";
+
+export type NudgeBodyParamSpec =
+  | { type: "name" }
+  | { type: "body_text" }
+  | { type: "literal"; value: string };
+
+export type NudgeJobStatus =
+  | "pending"
+  | "sending"
+  | "sent"
+  | "skipped"
+  | "failed";
+
+export type NudgeSkipReason =
+  | "opted_out"
+  | "replied"
+  | "mode_human"
+  | "max_attempts"
+  | "window_violation"
+  | "rule_disabled"
+  | "nudges_disabled";
+
+export interface NudgeRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  source_type: NudgeSourceType | null;
+  source_campaign_id: string | null;
+  lead_type: string | null;
+  delay_hours: number;
+  attempt_number: number;
+  min_gap_hours: number;
+  max_attempts: number;
+  template_name: string;
+  template_language: string;
+  template_category: NudgeTemplateCategory;
+  template_body_params: NudgeBodyParamSpec[];
+  template_body_text: string | null;
+  template_header_url: string | null;
+  template_header_media_type: NudgeHeaderMediaType | null;
+  template_header_filename: string | null;
+  respect_24h_window: boolean;
+  free_form_fallback: string | null;
+  total_sent_count: number;
+  total_skipped_count: number;
+  total_failed_count: number;
+  total_replied_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NudgeJob {
+  id: string;
+  rule_id: string;
+  conversation_id: string;
+  phone: string;
+  attempt_number: number;
+  scheduled_for: string;
+  status: NudgeJobStatus;
+  skip_reason: NudgeSkipReason | null;
+  whatsapp_msg_id: string | null;
+  error: string | null;
+  attempt_count: number;
+  last_attempt_at: string | null;
+  sent_at: string | null;
+  created_at: string;
+}
 
 export interface AppUser {
   id: string;
