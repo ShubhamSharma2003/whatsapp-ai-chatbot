@@ -38,7 +38,38 @@ export interface ConversationWithLastMessage extends Conversation {
   /** Timestamp of the most recent inbound (role='user') message, or null if user has never replied. */
   last_user_message_at: string | null;
   source: ConversationSource;
+  // Nudge state (denormalized from conversations table + nudge_jobs)
+  opted_out: boolean;
+  nudges_disabled: boolean;
+  nudge_count: number;
+  last_nudge_at: string | null;
+  last_inbound_at: string | null;
+  last_outbound_at: string | null;
+  /** True if at least one nudge_job for this conversation is in pending/sending status. */
+  has_pending_nudge: boolean;
+  /** ISO timestamp of the next scheduled nudge if any pending job exists, else null. */
+  next_nudge_at: string | null;
+  /** True if user replied AFTER our last nudge was sent. */
+  replied_to_nudge: boolean;
+  /** True if conversation was nudged at least once but user never replied since the nudge. */
+  ignored_nudge: boolean;
 }
+
+/**
+ * Filter identifiers for the conversations dashboard. Server-evaluated.
+ */
+export type ConversationFilter =
+  | "all"
+  | "facebook"          // source_type='iq_setter' (IQ Setter is the FB lead pipeline)
+  | "direct"            // source_type='direct'
+  | "campaign"          // source_type='campaign'
+  | "website"           // source_type='website'
+  | "nudged"            // nudge_count > 0
+  | "upcoming_nudge"    // has pending nudge_job
+  | "replied_to_nudge"  // last_inbound_at > last_nudge_at
+  | "ignored_nudge"     // nudge_count > 0 AND no reply since last_nudge_at
+  | "opted_out"
+  | "human_mode";
 
 /**
  * WhatsApp 24-hour customer-service window state.

@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import SidebarNav, { MobileNavToggle } from "@/components/ui/SidebarNav";
 import { Skeleton } from "@/components/ui/Loaders";
 import type {
@@ -415,17 +416,25 @@ export default function NudgesPage() {
                 </h1>
               </div>
             </div>
-            <button
-              onClick={startCreate}
-              className="px-4 py-2.5 rounded-md text-[13px] font-medium text-white"
-              style={{
-                background:
-                  "linear-gradient(135deg, #14A871 0%, #0A7350 60%, #064D33 100%)",
-                boxShadow: "0 8px 20px -6px rgba(14, 138, 95, 0.45)",
-              }}
-            >
-              + New nudge rule
-            </button>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/nudges/analytics"
+                className="px-4 py-2.5 rounded-md text-[13px] font-medium border border-line text-ink hover:bg-hover"
+              >
+                Analytics →
+              </Link>
+              <button
+                onClick={startCreate}
+                className="px-4 py-2.5 rounded-md text-[13px] font-medium text-white"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #14A871 0%, #0A7350 60%, #064D33 100%)",
+                  boxShadow: "0 8px 20px -6px rgba(14, 138, 95, 0.45)",
+                }}
+              >
+                + New nudge rule
+              </button>
+            </div>
           </div>
           <p className="text-[12.5px] text-muted mt-3 max-w-2xl leading-relaxed">
             Auto follow-up to leads who received your message but didn&apos;t reply.

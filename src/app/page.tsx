@@ -7,9 +7,24 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Orbit, Skeleton, Dots } from "@/components/ui/Loaders";
 import {
   getWhatsAppWindowStatus,
+  type ConversationFilter,
   type ConversationWithLastMessage,
   type Message,
 } from "@/lib/types";
+
+const FILTER_CHIPS: { id: ConversationFilter; label: string; tone: string }[] = [
+  { id: "all", label: "All", tone: "var(--ink)" },
+  { id: "facebook", label: "Facebook leads", tone: "var(--info)" },
+  { id: "direct", label: "Direct", tone: "var(--emerald)" },
+  { id: "campaign", label: "Campaign", tone: "var(--purple)" },
+  { id: "website", label: "Website", tone: "var(--accent)" },
+  { id: "nudged", label: "Nudged", tone: "var(--warn-ink)" },
+  { id: "upcoming_nudge", label: "Upcoming nudge", tone: "var(--info)" },
+  { id: "replied_to_nudge", label: "Replied to nudge", tone: "var(--emerald)" },
+  { id: "ignored_nudge", label: "Ignored nudge", tone: "var(--danger-ink)" },
+  { id: "opted_out", label: "Opted out", tone: "var(--danger-ink)" },
+  { id: "human_mode", label: "Human handling", tone: "var(--amber)" },
+];
 
 export default function Dashboard() {
   const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient> | null>(null);
@@ -30,6 +45,7 @@ export default function Dashboard() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<ConversationFilter>("all");
   const deepLinkPending = useRef(false);
   // Minute-tick clock so the 24h window badge ages live without extra fetches.
   const [now, setNow] = useState(() => Date.now());
@@ -58,12 +74,19 @@ export default function Dashboard() {
     return { total, ai, human };
   }, [conversations]);
 
-  const fetchConversations = useCallback(async () => {
-    const res = await fetch("/api/conversations");
-    const data = await res.json();
-    setConversations(data);
-    setLoadingConvos(false);
-  }, []);
+  const fetchConversations = useCallback(
+    async (filter: ConversationFilter = "all") => {
+      const url =
+        filter === "all"
+          ? "/api/conversations"
+          : `/api/conversations?filter=${encodeURIComponent(filter)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      setConversations(data);
+      setLoadingConvos(false);
+    },
+    []
+  );
 
   const fetchMessages = useCallback(async (convoId: string) => {
     setLoadingMessages(true);
@@ -74,8 +97,9 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
+    setLoadingConvos(true);
+    fetchConversations(activeFilter);
+  }, [fetchConversations, activeFilter]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -145,7 +169,7 @@ export default function Dashboard() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "conversations" },
         () => {
-          fetchConversations();
+          fetchConversations(activeFilter);
         }
       )
       .subscribe();
@@ -153,7 +177,7 @@ export default function Dashboard() {
     return () => {
       supabase?.removeChannel(channel);
     };
-  }, [selectedId, supabase, fetchConversations]);
+  }, [selectedId, supabase, fetchConversations, activeFilter]);
 
   async function toggleMode() {
     if (!selected) return;
@@ -345,6 +369,35 @@ export default function Dashboard() {
               </button>
             )}
           </div>
+
+          {/* Filter chips */}
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {FILTER_CHIPS.map((chip) => {
+              const isActive = activeFilter === chip.id;
+              return (
+                <button
+                  key={chip.id}
+                  onClick={() => setActiveFilter(chip.id)}
+                  className="text-[11.5px] font-medium px-2.5 py-1 rounded-full border transition-colors whitespace-nowrap"
+                  style={
+                    isActive
+                      ? {
+                          background: chip.tone,
+                          color: "white",
+                          borderColor: chip.tone,
+                        }
+                      : {
+                          background: "var(--surface)",
+                          color: "var(--muted)",
+                          borderColor: "var(--line)",
+                        }
+                  }
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* List */}
@@ -448,6 +501,7 @@ export default function Dashboard() {
                             now={now}
                             compact
                           />
+                          <NudgeBadges convo={convo} now={now} />
                         </div>
                       </div>
                     </div>
@@ -772,6 +826,97 @@ export default function Dashboard() {
       </div>
     </div>
   );
+}
+
+function NudgeBadges({
+  convo,
+  now,
+}: {
+  convo: ConversationWithLastMessage;
+  now: number;
+}) {
+  const badges: { label: string; bg: string; ink: string; border: string; title?: string }[] = [];
+
+  if (convo.opted_out) {
+    badges.push({
+      label: "Opted out",
+      bg: "var(--danger-soft)",
+      ink: "var(--danger-ink)",
+      border: "var(--danger)",
+    });
+  }
+  if (convo.nudges_disabled) {
+    badges.push({
+      label: "Nudges paused",
+      bg: "var(--surface-2)",
+      ink: "var(--muted)",
+      border: "var(--line)",
+    });
+  }
+  if (convo.replied_to_nudge) {
+    badges.push({
+      label: "Replied to nudge",
+      bg: "var(--emerald-soft)",
+      ink: "var(--emerald-deep)",
+      border: "var(--emerald)",
+      title: `Replied after nudge sent ${convo.last_nudge_at ?? ""}`,
+    });
+  } else if (convo.ignored_nudge) {
+    badges.push({
+      label: `Ignored ×${convo.nudge_count}`,
+      bg: "var(--warn-soft)",
+      ink: "var(--warn-ink)",
+      border: "var(--warn)",
+      title: `Last nudge: ${convo.last_nudge_at ?? "—"}`,
+    });
+  } else if (convo.nudge_count > 0) {
+    badges.push({
+      label: `Nudged ×${convo.nudge_count}`,
+      bg: "var(--info-soft)",
+      ink: "var(--info)",
+      border: "var(--info)",
+    });
+  }
+  if (convo.has_pending_nudge && convo.next_nudge_at) {
+    badges.push({
+      label: `Nudge ${formatRelativeFuture(convo.next_nudge_at, now)}`,
+      bg: "var(--purple-soft)",
+      ink: "var(--purple)",
+      border: "var(--purple)",
+      title: `Scheduled for ${convo.next_nudge_at}`,
+    });
+  }
+
+  if (badges.length === 0) return null;
+  return (
+    <>
+      {badges.map((b, i) => (
+        <span
+          key={i}
+          title={b.title}
+          className="text-[9.5px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wider"
+          style={{
+            background: b.bg,
+            color: b.ink,
+            border: `1px solid ${b.border}25`,
+          }}
+        >
+          {b.label}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function formatRelativeFuture(iso: string, now: number): string {
+  const ms = new Date(iso).getTime() - now;
+  if (ms <= 0) return "due";
+  const min = Math.round(ms / 60000);
+  if (min < 60) return `in ${min}m`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `in ${hr}h`;
+  const d = Math.round(hr / 24);
+  return `in ${d}d`;
 }
 
 function WindowBadge({

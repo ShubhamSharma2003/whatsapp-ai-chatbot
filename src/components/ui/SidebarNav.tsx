@@ -60,6 +60,18 @@ const ITEMS: Item[] = [
     ),
   },
   {
+    href: "/nudges/analytics",
+    label: "Nudge Analytics",
+    feature: "nudges",
+    icon: (
+      <>
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+      </>
+    ),
+  },
+  {
     href: "/admin/projects",
     label: "Projects",
     feature: "projects",
@@ -193,8 +205,18 @@ export default function SidebarNav({
 
         <nav className="flex-1 flex flex-col gap-0.5 px-3 py-4">
           <p className="eyebrow px-3 mb-2">Workspace</p>
-          {visibleItems.map((it) => {
-            const isActive = active === it.href || (it.href !== "/" && active.startsWith(it.href));
+          {(() => {
+            // Longest-matching href wins so /nudges/analytics doesn't also light /nudges.
+            const matches = visibleItems
+              .filter(
+                (it) =>
+                  active === it.href ||
+                  (it.href !== "/" && active.startsWith(it.href + "/"))
+              )
+              .sort((a, b) => b.href.length - a.href.length);
+            const activeHref = matches[0]?.href ?? null;
+            return visibleItems.map((it) => {
+              const isActive = activeHref === it.href;
             return (
               <button
                 key={it.href}
@@ -233,7 +255,8 @@ export default function SidebarNav({
                 <span>{it.label}</span>
               </button>
             );
-          })}
+            });
+          })()}
         </nav>
 
         <div className="px-3 py-3 border-t border-line">
