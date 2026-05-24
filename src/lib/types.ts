@@ -28,6 +28,8 @@ export interface Message {
   whatsapp_msg_id: string | null;
   media_url: string | null;
   media_type: string | null;
+  media_kind: string | null;
+  media_project_slug: string | null;
   created_at: string;
 }
 
@@ -78,7 +80,8 @@ export type Feature =
   | "admin"
   | "ai_calling"
   | "lead_types"
-  | "nudges";
+  | "nudges"
+  | "projects";
 
 // --- Nudge System ---
 
@@ -225,4 +228,53 @@ export interface AiCallTranscript {
     vapi?: number;
   };
   created_at: string;
+}
+
+// --- Project Media Library ---
+
+export type ProjectMediaKind =
+  | "brochure"
+  | "image"
+  | "floor_plan"
+  | "price_list"
+  | "video";
+
+export interface Project {
+  id: string;
+  slug: string;
+  name: string;
+  aliases: string[];
+  short_description: string | null;
+  details_md: string | null;
+  enabled: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectMedia {
+  id: string;
+  project_id: string;
+  kind: ProjectMediaKind;
+  url: string;
+  filename: string | null;
+  mime: string | null;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+/** Compact catalog row injected into the AI system prompt. */
+export interface ProjectCatalogEntry {
+  slug: string;
+  name: string;
+  aliases: string[];
+  short_description: string | null;
+  available_media: ProjectMediaKind[];
+}
+
+/** A tool-call result the webhook should execute. */
+export interface ProjectMediaSend {
+  project_slug: string;
+  media_kind: ProjectMediaKind;
 }

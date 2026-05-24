@@ -24,6 +24,7 @@ export async function GET() {
         "Hello! I filled out your form and would like to know more about your business.",
       direct_form_messages: [],
       iq_default_messages: [],
+      project_media_enabled: false,
     });
   }
 
@@ -50,6 +51,7 @@ export async function PATCH(request: NextRequest) {
     "direct_form_trigger_phrase",
     "direct_form_messages",
     "iq_default_messages",
+    "project_media_enabled",
   ];
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };

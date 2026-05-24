@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendWhatsAppMedia, sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getAIResponse, isAutoReplyEnabled, getDefaultConversationMode } from "@/lib/ai";
+import { getProjectMedia } from "@/lib/projects";
 import {
   getCompanyProfileAttachment,
   getDirectFormConfig,
@@ -429,8 +430,8 @@ export async function POST(request: NextRequest) {
       (m) => m.media_type === "document" || m.media_type === "image"
     );
 
-    // Get AI response
-    const aiResponse = await getAIResponse(
+    // Get AI response (text + any media to send)
+    const ai = await getAIResponse(
       (history || []).map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
@@ -443,15 +444,70 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // Send response via WhatsApp
-    await sendWhatsAppMessage(phone, aiResponse);
+    // ─── Send any project media the AI requested ───
+    // Dedup: check messages table for prior sends of same project+kind in this convo.
+    for (const send of ai.mediaSends) {
+      const { data: prior } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("conversation_id", conversation.id)
+        .eq("media_project_slug", send.project_slug)
+        .eq("media_kind", send.media_kind)
+        .limit(1)
+        .maybeSingle();
+      if (prior) {
+        console.log(
+          `Skipping duplicate media: ${send.project_slug}/${send.media_kind}`
+        );
+        continue;
+      }
+      const media = await getProjectMedia(send.project_slug, send.media_kind);
+      if (!media) {
+        console.warn(
+          `No media row for ${send.project_slug}/${send.media_kind}`
+        );
+        continue;
+      }
+      const mediaType: "image" | "document" | "video" | "audio" =
+        send.media_kind === "video"
+          ? "video"
+          : send.media_kind === "image"
+          ? "image"
+          : "document";
+      try {
+        await sendWhatsAppMedia(
+          phone,
+          mediaType,
+          media.url,
+          media.caption ?? undefined,
+          media.filename ?? undefined
+        );
+        await supabase.from("messages").insert({
+          conversation_id: conversation.id,
+          role: "assistant",
+          content: media.caption ?? "",
+          media_url: media.url,
+          media_type: mediaType,
+          media_kind: send.media_kind,
+          media_project_slug: send.project_slug,
+        });
+      } catch (err) {
+        console.error(
+          `Failed to send media ${send.project_slug}/${send.media_kind}`,
+          err
+        );
+      }
+    }
 
-    // Store AI response
-    await supabase.from("messages").insert({
-      conversation_id: conversation.id,
-      role: "assistant",
-      content: aiResponse,
-    });
+    // Send text reply if the model produced one
+    if (ai.text.trim()) {
+      await sendWhatsAppMessage(phone, ai.text);
+      await supabase.from("messages").insert({
+        conversation_id: conversation.id,
+        role: "assistant",
+        content: ai.text,
+      });
+    }
 
     // ─── Auto-attach company profile when AI announces it ───
     // The system prompt tells the AI to mention sharing the profile on first
@@ -461,7 +517,7 @@ export async function POST(request: NextRequest) {
     if (
       !brochureSent &&
       /company\s+profile|company['’]?s\s+profile|share\s+(?:the\s+)?profile/i.test(
-        aiResponse
+        ai.text
       )
     ) {
       const attachment = await getCompanyProfileAttachment();

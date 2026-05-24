@@ -8,7 +8,7 @@ type Item = {
   href: string;
   label: string;
   icon: React.ReactNode;
-  feature?: "ai_calling" | "lead_types" | "nudges";
+  feature?: "ai_calling" | "lead_types" | "nudges" | "projects";
   superadminOnly?: boolean;
 };
 
@@ -56,6 +56,19 @@ const ITEMS: Item[] = [
     icon: (
       <>
         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+      </>
+    ),
+  },
+  {
+    href: "/admin/projects",
+    label: "Projects",
+    feature: "projects",
+    icon: (
+      <>
+        <path d="M3 3h7v7H3z" />
+        <path d="M14 3h7v7h-7z" />
+        <path d="M14 14h7v7h-7z" />
+        <path d="M3 14h7v7H3z" />
       </>
     ),
   },

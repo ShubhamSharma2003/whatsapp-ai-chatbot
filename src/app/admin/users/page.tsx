@@ -10,6 +10,7 @@ const ALL_FEATURES: { value: Feature; label: string }[] = [
   { value: "dashboard", label: "Conversations" },
   { value: "campaigns", label: "Campaigns" },
   { value: "settings", label: "Settings" },
+  { value: "projects", label: "Projects" },
 ];
 
 type PhoneOption = { phone: string; name: string | null };

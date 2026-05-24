@@ -42,6 +42,7 @@ type Settings = {
   direct_form_trigger_phrase: string;
   direct_form_messages: DirectFormMessage[];
   iq_default_messages: DirectFormMessage[];
+  project_media_enabled: boolean;
 };
 
 type CallSettings = {
@@ -426,6 +427,22 @@ export default function SettingsPage() {
                       draft.auto_reply_enabled
                         ? "The AI will respond to new messages automatically."
                         : "No messages will be sent automatically. Human mode only."
+                    }
+                  />
+                </Section>
+
+                <Section
+                  title="Project media library"
+                  description="Let the AI send project brochures, images, and floor plans on demand. Uploads managed under Projects."
+                >
+                  <Toggle
+                    enabled={!!draft.project_media_enabled}
+                    onChange={(v) => updateDraft("project_media_enabled", v)}
+                    label={draft.project_media_enabled ? "Project media is ON" : "Project media is OFF"}
+                    sublabel={
+                      draft.project_media_enabled
+                        ? "AI may call send_project_media when a lead explicitly asks for a brochure or image."
+                        : "AI replies in text only. No media will be sent based on lead requests."
                     }
                   />
                 </Section>
